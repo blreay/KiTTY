@@ -208,6 +208,8 @@ static void ssh2_userauth_free(PacketProtocolLayer *ppl)
     sfree(s->locally_allocated_username);
     sfree(s->hostname);
     sfree(s->fullhostname);
+    if (s->cur_prompt)
+        free_prompts(s->cur_prompt);
     sfree(s->publickey_comment);
     sfree(s->publickey_algorithm);
     if (s->publickey_blob)
@@ -482,6 +484,7 @@ static void ssh2_userauth_process_queue(PacketProtocolLayer *ppl)
                  * Terminate.
                  */
                 free_prompts(s->cur_prompt);
+                s->cur_prompt = NULL;
                 ssh_user_close(s->ppl.ssh, "No username provided");
                 return;
             }
@@ -492,6 +495,7 @@ static void ssh2_userauth_process_queue(PacketProtocolLayer *ppl)
 	SetUsernameInConfig( (const char*)s->username ) ;
 #endif
             free_prompts(s->cur_prompt);
+            s->cur_prompt = NULL;
         } else {
             if (seat_verbose(s->ppl.seat) || seat_interactive(s->ppl.seat))
                 ppl_printf("Using username \"%s\".\r\n", s->username);
@@ -979,6 +983,7 @@ static void ssh2_userauth_process_queue(PacketProtocolLayer *ppl)
                         if (!s->userpass_ret) {
                             /* Failed to get a passphrase. Terminate. */
                             free_prompts(s->cur_prompt);
+                            s->cur_prompt = NULL;
                             ssh_bpp_queue_disconnect(
                                 s->ppl.bpp, "Unable to authenticate",
                                 SSH2_DISCONNECT_AUTH_CANCELLED_BY_USER);
@@ -989,6 +994,7 @@ static void ssh2_userauth_process_queue(PacketProtocolLayer *ppl)
                         passphrase =
                             prompt_get_result(s->cur_prompt->prompts[0]);
                         free_prompts(s->cur_prompt);
+                        s->cur_prompt = NULL;
                     } else {
                         passphrase = NULL; /* no passphrase needed */
                     }
@@ -1511,6 +1517,7 @@ static void ssh2_userauth_process_queue(PacketProtocolLayer *ppl)
                          * Failed to get responses. Terminate.
                          */
                         free_prompts(s->cur_prompt);
+                        s->cur_prompt = NULL;
                         ssh_bpp_queue_disconnect(
                             s->ppl.bpp, "Unable to authenticate",
                             SSH2_DISCONNECT_AUTH_CANCELLED_BY_USER);
@@ -1550,6 +1557,7 @@ static void ssh2_userauth_process_queue(PacketProtocolLayer *ppl)
                      * when we return to the top of this while loop.
                      */
                     free_prompts(s->cur_prompt);
+                    s->cur_prompt = NULL;
 
                     /*
                      * Get the next packet in case it's another
@@ -1613,6 +1621,7 @@ static void ssh2_userauth_process_queue(PacketProtocolLayer *ppl)
                      * Failed to get responses. Terminate.
                      */
                     free_prompts(s->cur_prompt);
+                    s->cur_prompt = NULL;
                     ssh_bpp_queue_disconnect(
                         s->ppl.bpp, "Unable to authenticate",
                         SSH2_DISCONNECT_AUTH_CANCELLED_BY_USER);
@@ -1626,6 +1635,7 @@ static void ssh2_userauth_process_queue(PacketProtocolLayer *ppl)
                  */
                 s->password = prompt_get_result(s->cur_prompt->prompts[0]);
                 free_prompts(s->cur_prompt);
+                s->cur_prompt = NULL;
 
                 /*
                  * Send the password packet.
@@ -1785,6 +1795,7 @@ static void ssh2_userauth_process_queue(PacketProtocolLayer *ppl)
                              */
                             /* burn the evidence */
                             free_prompts(s->cur_prompt);
+                            s->cur_prompt = NULL;
                             smemclr(s->password, strlen(s->password));
                             sfree(s->password);
                             ssh_bpp_queue_disconnect(
@@ -1836,6 +1847,7 @@ static void ssh2_userauth_process_queue(PacketProtocolLayer *ppl)
                     put_stringz(s->pktout, prompt_get_result_ref(
                                     s->cur_prompt->prompts[1]));
                     free_prompts(s->cur_prompt);
+                    s->cur_prompt = NULL;
                     s->pktout->minlen = 256;
                     pq_push(s->ppl.out_pq, s->pktout);
                     ppl_logevent("Sent new password");
