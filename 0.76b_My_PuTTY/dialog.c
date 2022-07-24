@@ -401,6 +401,7 @@ union control *ctrl_filesel(struct controlset *s, const char *label,
     c->fileselect.filter = filter;
     c->fileselect.for_writing = write;
     c->fileselect.title = dupstr(title);
+    c->fileselect.just_button = false;
     return c;
 }
 
