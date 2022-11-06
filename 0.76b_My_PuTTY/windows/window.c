@@ -894,6 +894,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     /*
      * Process the command line.
+     * (If the command line doesn't provide enough info to start a
+     * session, this will detour via the config box.)
      */
     {
 	char *p;
