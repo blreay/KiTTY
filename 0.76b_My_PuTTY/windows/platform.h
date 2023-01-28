@@ -200,6 +200,7 @@ struct FontSpec *fontspec_new(
 
 #define DEFAULT_CODEPAGE CP_ACP
 #define USES_VTLINE_HACK
+#define CP_UTF8 65001
 
 #ifndef NO_GSSAPI
 /*
