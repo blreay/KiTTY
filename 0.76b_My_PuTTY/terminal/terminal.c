@@ -4078,6 +4078,23 @@ static void term_print_finish(Terminal *term)
     term->printing = term->only_printing = false;
 }
 
+int term_char_width(Terminal *term, unsigned int c)
+{
+    /* For Private Use Area characters, their width depends entirely on
+     * the font (e.g., Nerd Font icons are typically double-width).
+     * Consult the font's actual glyph width instead of relying on the
+     * static Unicode tables which have no standard width for PUA. */
+    if (term && term->win &&
+        ((c >= 0xE000 && c <= 0xF8FF) ||    /* BMP PUA */
+         (c >= 0xF0000 && c <= 0xFFFFD) ||   /* Supplementary PUA-A */
+         (c >= 0x100000 && c <= 0x10FFFD))) { /* Supplementary PUA-B */
+        int font_w = win_char_width(term->win, c);
+        if (font_w > 0)
+            return font_w;
+    }
+    return term->cjk_ambig_wide ? mk_wcwidth_cjk(c) : mk_wcwidth(c);
+}
+
 static void term_display_graphic_char(Terminal *term, unsigned long c)
 {
     termline *cline = scrlineptr(term->curs.y);
