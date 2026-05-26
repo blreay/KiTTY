@@ -269,6 +269,7 @@ extern HWND MainHwnd ;
 #include "../../kitty_ssh.h"
 #include "../../kitty_tools.h"
 #include "../../kitty_win.h"
+#include "../../kitty_fontfallback.h"
 extern int PuttyFlag ;
 int GetCursorType() { return cursor_type ; }
 void SetCursorType( const int ct ) { cursor_type = ct ; }
@@ -2809,6 +2810,8 @@ static void init_fonts(int pick_width, int pick_height)
     fontflag[1] = true;
     fontflag[2] = true;
 
+    kff_init(fonts[FONT_NORMAL], &lfont, conf_get_int(conf, CONF_font_quality));
+
     init_ucs(conf, &ucsdata);
 }
 
@@ -2895,6 +2898,8 @@ static void deinit_fonts(void)
 	DestroyIcon(trust_icon);
     }
     trust_icon = INVALID_HANDLE_VALUE;
+
+    kff_deinit();
 }
 
 static void wintw_request_resize(TermWin *tw, int w, int h)
