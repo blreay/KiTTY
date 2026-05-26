@@ -225,6 +225,36 @@ static int measure_glyph_px(HFONT hfont, unsigned int cp)
 }
 
 /* ------------------------------------------------------------------ */
+/* Lookup helpers                                                        */
+/* ------------------------------------------------------------------ */
+
+static bool is_pua(unsigned int cp)
+{
+    return (cp >= 0xE000  && cp <= 0xF8FF)   ||  /* BMP PUA */
+           (cp >= 0xF0000 && cp <= 0xFFFFD)  ||  /* Supplementary PUA-A */
+           (cp >= 0x100000&& cp <= 0x10FFFD);     /* Supplementary PUA-B */
+}
+
+static HFONT make_fallback_hfont(const wchar_t *face_name)
+{
+    LOGFONTW lf = g_kff.primary_lfw;
+    wcsncpy(lf.lfFaceName, face_name, LF_FACESIZE - 1);
+    lf.lfFaceName[LF_FACESIZE - 1] = L'\0';
+    lf.lfWidth = 0;
+    return pool_get_or_create(&lf);
+}
+
+static HFONT find_pua_font(unsigned int cp)
+{
+    for (int i = 0; kff_builtin_fonts[i]; i++) {
+        HFONT hf = make_fallback_hfont(kff_builtin_fonts[i]);
+        if (hf && font_has_glyph(hf, cp))
+            return hf;
+    }
+    return NULL;
+}
+
+/* ------------------------------------------------------------------ */
 /* Public API                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -286,9 +316,36 @@ void kff_deinit(void)
 
 KffResult kff_lookup(unsigned int codepoint)
 {
-    (void)codepoint;
-    KffResult r = {NULL, 0};
-    return r;
+    KffResult miss = {NULL, 0};
+    if (!g_kff.initialized) return miss;
+    if (codepoint == 0)     return miss;
+
+    /* 1. Cache hit */
+    KffResult cached;
+    if (cache_get(codepoint, &cached)) return cached;
+
+    /* 2. Primary font already has this glyph → no fallback needed */
+    if (g_kff.primary_hfont && font_has_glyph(g_kff.primary_hfont, codepoint)) {
+        cache_set(codepoint, miss);
+        return miss;
+    }
+
+    KffResult result = miss;
+
+    if (is_pua(codepoint)) {
+        /* 3a. PUA: try builtin Nerd Font list */
+        HFONT hf = find_pua_font(codepoint);
+        if (hf) {
+            result.hfont    = hf;
+            result.glyph_px = measure_glyph_px(hf, codepoint);
+        }
+    } else {
+        /* 3b. Non-PUA (Box Drawing etc.): DWrite fallback — implemented in Task 4 */
+        (void)0;
+    }
+
+    cache_set(codepoint, result);
+    return result;
 }
 
 int kff_char_width(unsigned int codepoint, int font_width)
