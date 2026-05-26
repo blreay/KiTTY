@@ -478,7 +478,7 @@ putty.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		-Wl,--start-group ../../base64/base64.a ../../bcrypt/bcrypt.a ../../blocnote/notepad.a ../../jpeg/libjpeg.a \
 		../../md5/MD5check.a ../../mini/mini.a ../../regex/libregex.a -Wl,--end-group \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lpsapi -lole32 -lshell32 \
-		-luser32 -lwsock32  -lwtsapi32 -ldwrite \
+		-luser32 -lwsock32  -lwtsapi32 -ldwrite -lstdc++ \
 		#-lcrypt32 \
 		#/c/Windows/system32/crypt32.dll /c/windows/system32/ncrypt.dll \
 		# -lcomctl32 -lwinmm -lwinspool -lole32 
