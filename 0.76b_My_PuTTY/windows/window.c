@@ -6673,8 +6673,10 @@ static void do_text_internal(
                 int fi;
                 for (fi = 0; fi < len && !needs_fallback; fi++) {
                     unsigned int cp = (unsigned int)wbuf[fi];
-                    if (fi + 1 < len && IS_SURROGATE_PAIR(wbuf[fi], wbuf[fi+1]))
+                    if (fi + 1 < len && IS_SURROGATE_PAIR(wbuf[fi], wbuf[fi+1])) {
                         cp = 0x10000u + ((wbuf[fi]-0xD800u)<<10) + (wbuf[fi+1]-0xDC00u);
+                        fi++;
+                    }
                     if (kff_lookup(cp).hfont)
                         needs_fallback = 1;
                 }
