@@ -29,7 +29,9 @@
 static char *cmdline_keyfile = NULL;
 
 #ifdef MOD_PERSO
+#ifndef MOD_INTEGRATED_KEYGEN
 Conf *conf;
+#endif
 #endif
 #ifndef MOD_INTEGRATED_KEYGEN
 /*

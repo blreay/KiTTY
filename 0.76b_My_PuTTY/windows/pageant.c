@@ -35,7 +35,9 @@ extern int DirectoryBrowseFlag ;
 #include "../storage.h"
 
 static char pphrase[2048]="";
+#ifndef MOD_INTEGRATED_AGENT
 Conf *conf;
+#endif
 #endif
 
 #ifndef NO_SECURITY
@@ -1519,7 +1521,10 @@ static const PageantListenerClientVtable winpgnt_vtable = {
 
 static struct winpgnt_client wpc[1];
 
+#ifndef MOD_INTEGRATED_AGENT
 HINSTANCE hinst;
+NOTIFYICONDATA trayIcone ;
+#endif
 
 #ifndef MOD_INTEGRATED_AGENT
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)

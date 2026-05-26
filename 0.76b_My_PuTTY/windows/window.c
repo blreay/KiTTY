@@ -269,6 +269,8 @@ extern HWND MainHwnd ;
 #include "../../kitty_ssh.h"
 #include "../../kitty_tools.h"
 #include "../../kitty_win.h"
+NOTIFYICONDATA TrayIcone ;
+NOTIFYICONDATA trayIcone ;
 extern int PuttyFlag ;
 int GetCursorType() { return cursor_type ; }
 void SetCursorType( const int ct ) { cursor_type = ct ; }
@@ -443,7 +445,7 @@ int WINAPI Agent_WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show
 
 #endif
 #ifdef MOD_WTS
-typedef enum _WTS_VIRTUAL_CLASS { WTSVirtualClientData, WTSVirtualFileHandle } WTS_VIRTUAL_CLASS; 		// WTS_VIRTUAL_CLASS is not definned in file wtsapi32.h !!!
+// typedef enum _WTS_VIRTUAL_CLASS { WTSVirtualClientData, WTSVirtualFileHandle } WTS_VIRTUAL_CLASS; 		// WTS_VIRTUAL_CLASS is not definned in file wtsapi32.h !!!
 #include <wtsapi32.h>
 #endif
 #if (defined MOD_BACKGROUNDIMAGE) && (!defined FLJ)

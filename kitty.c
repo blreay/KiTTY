@@ -386,7 +386,6 @@ HWND GetMainHwnd(void) { return MainHwnd ; }
 // Decompte du nombre de fenetres en cours de KiTTY
 static int NbWindows = 0 ;
 
-NOTIFYICONDATA TrayIcone ;
 #define MYWM_NOTIFYICON		(WM_USER+3)
 
 #define TIMER_INIT 8701
