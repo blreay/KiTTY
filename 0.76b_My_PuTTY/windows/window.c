@@ -2812,6 +2812,28 @@ static void init_fonts(int pick_width, int pick_height)
 
     kff_init(fonts[FONT_NORMAL], &lfont, conf_get_int(conf, CONF_font_quality));
 
+    /* Read user fallback font list from kitty.ini [FontFallback] FallbackFont0..7 */
+    {
+        const wchar_t *ptrs[8];
+        wchar_t wnames[8][LF_FACESIZE];
+        int n = 0;
+        char *inipath = get_param_str("INI");
+        if (inipath) {
+            int i;
+            for (i = 0; i < 8; i++) {
+                char key[24], val[LF_FACESIZE];
+                sprintf(key, "FallbackFont%d", i);
+                val[0] = '\0';
+                if (!readINI(inipath, "FontFallback", key, val) || val[0] == '\0')
+                    break;
+                MultiByteToWideChar(CP_ACP, 0, val, -1, wnames[n], LF_FACESIZE);
+                ptrs[n] = wnames[n];
+                n++;
+            }
+        }
+        kff_set_user_fonts(ptrs, n);
+    }
+
     init_ucs(conf, &ucsdata);
 }
 

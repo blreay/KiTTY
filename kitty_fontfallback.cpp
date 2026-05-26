@@ -30,6 +30,8 @@ typedef struct {
     HFONT    primary_hfont;
     LOGFONTW primary_lfw;
     int      quality;
+    wchar_t user_fonts[8][LF_FACESIZE];
+    int     user_font_count;
     int      primary_cell_px; /* measured cell width of primary font, px */
 
     KffCacheEntry cache[KFF_CACHE_BUCKETS];
@@ -41,6 +43,7 @@ typedef struct {
 static KffState g_kff;
 
 static const wchar_t *kff_builtin_fonts[] = {
+    L"Sarasa Fixed SC Nerd Font",
     L"Symbols Nerd Font Mono",
     L"Symbols Nerd Font",
     L"Segoe UI Symbol",
@@ -247,10 +250,15 @@ static HFONT make_fallback_hfont(const wchar_t *face_name)
 
 static HFONT find_pua_font(unsigned int cp)
 {
+    /* User-configured fonts take priority */
+    for (int i = 0; i < g_kff.user_font_count; i++) {
+        HFONT hf = make_fallback_hfont(g_kff.user_fonts[i]);
+        if (hf && font_has_glyph(hf, cp)) return hf;
+    }
+    /* Then builtin list */
     for (int i = 0; kff_builtin_fonts[i]; i++) {
         HFONT hf = make_fallback_hfont(kff_builtin_fonts[i]);
-        if (hf && font_has_glyph(hf, cp))
-            return hf;
+        if (hf && font_has_glyph(hf, cp)) return hf;
     }
     return NULL;
 }
@@ -383,6 +391,19 @@ void kff_deinit(void)
     g_kff.primary_hfont = NULL;
     g_kff.primary_cell_px = 0;
     g_kff.font_pool     = NULL;
+    g_kff.user_font_count = 0;
+}
+
+void kff_set_user_fonts(const wchar_t **names, int count)
+{
+    g_kff.user_font_count = 0;
+    if (count > 8) count = 8;
+    for (int i = 0; i < count; i++) {
+        wcsncpy(g_kff.user_fonts[i], names[i], LF_FACESIZE - 1);
+        g_kff.user_fonts[i][LF_FACESIZE - 1] = L'\0';
+        g_kff.user_font_count++;
+    }
+    cache_clear();
 }
 
 KffResult kff_lookup(unsigned int codepoint)

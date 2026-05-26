@@ -26,6 +26,10 @@ int kff_char_width(unsigned int codepoint, int font_width);
 /* Call at end of deinit_fonts(). Releases all DWrite COM objects and HFONTs. */
 void kff_deinit(void);
 
+/* Call after kff_init() to prepend user-configured fonts (wide strings).
+   Resets user list first; pass count=0 to clear. */
+void kff_set_user_fonts(const wchar_t **names, int count);
+
 #ifdef __cplusplus
 }
 #endif
