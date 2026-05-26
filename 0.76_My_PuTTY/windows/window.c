@@ -6247,6 +6247,13 @@ static void do_text_internal(
     if (attr & ATTR_NARROW)
 	nfont |= FONT_NARROW;
 
+    /* For PUA (Nerd Font icons) with ATTR_WIDE, use FONT_WIDE to stretch
+     * the glyph horizontally to fill both cells. Unlike CJK glyphs which
+     * naturally fill their advance width, PUA icon glyphs are often narrow. */
+    if ((attr & ATTR_WIDE) && lattr == LATTR_NORM && len > 0 &&
+	(text[0] >= 0xE000 && text[0] <= 0xF8FF))
+	nfont |= FONT_WIDE;
+
 #ifdef USES_VTLINE_HACK
     /* Special hack for the VT100 linedraw glyphs. */
     if (text[0] >= 0x23BA && text[0] <= 0x23BD) {
@@ -6848,8 +6855,6 @@ static void wintw_draw_trust_sigil(TermWin *tw, int x, int y)
 static int wintw_char_width(TermWin *tw, int uc)
 {
     int ibuf = 0;
-    HDC hdc;
-    bool need_free = false;
 
     /* If the font max is the same as the font ave width then this
      * function is a no-op, unless the character is in a Private Use Area
@@ -6861,13 +6866,8 @@ static int wintw_char_width(TermWin *tw, int uc)
           (uc >= 0x100000 && uc <= 0x10FFFD)))
 	return 1;
 
-    hdc = wintw_hdc;
-    if (!hdc) {
-	hdc = make_hdc();
-	if (!hdc)
-	    return 0;
-	need_free = true;
-    }
+    if (!wintw_hdc)
+	return 0;
 
     switch (uc & CSET_MASK) {
       case CSET_ASCII:
@@ -6881,49 +6881,39 @@ static int wintw_char_width(TermWin *tw, int uc)
 	break;
     }
     if (DIRECT_FONT(uc)) {
-	if (ucsdata.dbcs_screenfont) { if (need_free) free_hdc(hdc); return 1; }
+	if (ucsdata.dbcs_screenfont) return 1;
 
 	/* Speedup, I know of no font where ascii is the wrong width */
-	if ((uc&~CSET_MASK) >= ' ' && (uc&~CSET_MASK)<= '~') {
-	    if (need_free) free_hdc(hdc);
+	if ((uc&~CSET_MASK) >= ' ' && (uc&~CSET_MASK)<= '~')
 	    return 1;
-	}
 
 	if ( (uc & CSET_MASK) == CSET_ACP ) {
-	    SelectObject(hdc, fonts[FONT_NORMAL]);
+	    SelectObject(wintw_hdc, fonts[FONT_NORMAL]);
 	} else if ( (uc & CSET_MASK) == CSET_OEMCP ) {
 	    another_font(FONT_OEM);
-	    if (!fonts[FONT_OEM]) { if (need_free) free_hdc(hdc); return 0; }
+	    if (!fonts[FONT_OEM]) return 0;
 
-	    SelectObject(hdc, fonts[FONT_OEM]);
-	} else {
-	    if (need_free) free_hdc(hdc);
+	    SelectObject(wintw_hdc, fonts[FONT_OEM]);
+	} else
 	    return 0;
-	}
 
-	if (GetCharWidth32(hdc, uc & ~CSET_MASK,
+	if (GetCharWidth32(wintw_hdc, uc & ~CSET_MASK,
                            uc & ~CSET_MASK, &ibuf) != 1 &&
-	    GetCharWidth(hdc, uc & ~CSET_MASK,
-                         uc & ~CSET_MASK, &ibuf) != 1) {
-	    if (need_free) free_hdc(hdc);
+	    GetCharWidth(wintw_hdc, uc & ~CSET_MASK,
+                         uc & ~CSET_MASK, &ibuf) != 1)
 	    return 0;
-	}
     } else {
 	/* Speedup, I know of no font where ascii is the wrong width */
-	if (uc >= ' ' && uc <= '~') { if (need_free) free_hdc(hdc); return 1; }
+	if (uc >= ' ' && uc <= '~') return 1;
 
-	SelectObject(hdc, fonts[FONT_NORMAL]);
-	if (GetCharWidth32W(hdc, uc, uc, &ibuf) == 1)
+	SelectObject(wintw_hdc, fonts[FONT_NORMAL]);
+	if (GetCharWidth32W(wintw_hdc, uc, uc, &ibuf) == 1)
 	    /* Okay that one worked */ ;
-	else if (GetCharWidthW(hdc, uc, uc, &ibuf) == 1)
+	else if (GetCharWidthW(wintw_hdc, uc, uc, &ibuf) == 1)
 	    /* This should work on 9x too, but it's "less accurate" */ ;
-	else {
-	    if (need_free) free_hdc(hdc);
+	else
 	    return 0;
-	}
     }
-
-    if (need_free) free_hdc(hdc);
 
     ibuf += font_width / 2 -1;
     ibuf /= font_width;

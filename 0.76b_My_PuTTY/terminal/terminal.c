@@ -7071,6 +7071,14 @@ static void do_paint(Terminal *term)
 		break_run = true;
 #endif
 
+	    /* Break on both sides of PUA (Nerd Font icon) characters so
+	     * they render with FONT_WIDE separately from CJK chars. */
+	    if ((tattr & ATTR_WIDE) &&
+		((tchar >= 0xE000 && tchar <= 0xF8FF) ||
+		 (j > 0 && newline[j-1].chr >= 0xE000 &&
+		  newline[j-1].chr <= 0xF8FF)))
+		break_run = true;
+
 	    /*
 	     * Separate out sequences of characters that have the
 	     * same CSET, if that CSET is a magic one.
