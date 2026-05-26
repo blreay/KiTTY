@@ -95,6 +95,8 @@
 # TOOLPATH = i686-w64-mingw32-
 # make -e TOOLPATH=/usr/bin/i686-w64-mingw32- -f MAKEFILE.MINGW putty.exe
 CC = $(TOOLPATH)gcc
+CXX      = $(TOOLPATH)g++
+CXXFLAGS = $(CFLAGS) -std=c++11
 RC = $(TOOLPATH)windres
 # Uncomment the following two lines to compile under Winelib
 # CC = winegcc
@@ -437,6 +439,7 @@ putty.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		cencode.o cdecode.o \
 		kitty.o kitty_commun.o kitty_crypt.o kitty_image.o kitty_proxy.o kitty_registry.o kitty_ssh.o \
 		kitty_store.o kitty_tools.o kitty_win.o \
+		kitty_fontfallback.o \
 		urlhack.o pageant_integrated.o winpageant_integrated.o winputtygen_integrated.o winpzmodem.o \
 		import.o rsag.o cryptodsa.o prime.o ecdsa.o bcrypt.o pockle.o primecandidate.o millerrabin.o mpunsafe.o \
 		void.o $(UTF8MOUSE_OBJS)
@@ -468,13 +471,14 @@ putty.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		cencode.o cdecode.o \
 		kitty.o kitty_commun.o kitty_crypt.o kitty_image.o kitty_proxy.o kitty_registry.o kitty_ssh.o \
 		kitty_store.o kitty_tools.o kitty_win.o \
+		kitty_fontfallback.o \
 		urlhack.o pageant_integrated.o winpageant_integrated.o winputtygen_integrated.o winpzmodem.o \
 		import.o rsag.o cryptodsa.o prime.o ecdsa.o bcrypt.o pockle.o primecandidate.o millerrabin.o mpunsafe.o \
 		void.o $(UTF8MOUSE_OBJS) \
 		-Wl,--start-group ../../base64/base64.a ../../bcrypt/bcrypt.a ../../blocnote/notepad.a ../../jpeg/libjpeg.a \
 		../../md5/MD5check.a ../../mini/mini.a ../../regex/libregex.a -Wl,--end-group \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lpsapi -lole32 -lshell32 \
-		-luser32 -lwsock32  -lwtsapi32 \
+		-luser32 -lwsock32  -lwtsapi32 -ldwrite \
 		#-lcrypt32 \
 		#/c/Windows/system32/crypt32.dll /c/windows/system32/ncrypt.dll \
 		# -lcomctl32 -lwinmm -lwinspool -lole32 
@@ -2377,6 +2381,9 @@ putty_portable.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o 
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lpsapi -lole32 -lshell32 \
 		-luser32 -lwsock32  -lwtsapi32
 		# -lcomctl32 -lwinmm -lwinspool -lole32 -lcrypt32
+
+kitty_fontfallback.o: ../../kitty_fontfallback.cpp ../../kitty_fontfallback.h
+	$(CXX) $(COMPAT) $(XFLAGS) $(CXXFLAGS) -c ../../kitty_fontfallback.cpp
 
 .PHONY: clean 9bis
 
