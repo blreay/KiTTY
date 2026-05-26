@@ -4,6 +4,8 @@
 #include <dwrite_2.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 /* ------------------------------------------------------------------ */
 /* Internal types                                                       */
@@ -41,6 +43,53 @@ typedef struct {
 } KffState;
 
 static KffState g_kff;
+
+/* ------------------------------------------------------------------ */
+/* Debug logging                                                        */
+/* ------------------------------------------------------------------ */
+static FILE *g_kff_log      = NULL;
+static int   g_kff_log_miss = 0;    /* count of lookup-level log lines */
+#define KFF_LOG_MISS_MAX 300        /* stop detailed logging after this */
+
+static void kff_log_open(void)
+{
+    char path[MAX_PATH];
+    GetTempPathA(MAX_PATH, path);
+    strncat(path, "kitty_fontfallback.log", MAX_PATH - strlen(path) - 1);
+    g_kff_log = fopen(path, "w");
+    g_kff_log_miss = 0;
+}
+
+static void kff_log_close(void)
+{
+    if (g_kff_log) { fclose(g_kff_log); g_kff_log = NULL; }
+}
+
+static void kff_log(const char *fmt, ...)
+{
+    if (!g_kff_log) return;
+    char buf[512];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
+    buf[sizeof(buf) - 1] = '\0';
+    va_end(ap);
+    fprintf(g_kff_log, "%s\n", buf);
+    fflush(g_kff_log);
+    OutputDebugStringA(buf);
+    OutputDebugStringA("\r\n");
+}
+
+/* Log a wide string safely (converts to ACP narrow) */
+static void kff_logw(const char *prefix, const wchar_t *wstr)
+{
+    if (!g_kff_log) return;
+    char narrow[256];
+    WideCharToMultiByte(CP_ACP, 0, wstr, -1, narrow, sizeof(narrow) - 1, NULL, NULL);
+    narrow[sizeof(narrow) - 1] = '\0';
+    kff_log("%s%s", prefix, narrow);
+}
+
 
 static const wchar_t *kff_builtin_fonts[] = {
     L"Sarasa Fixed SC Nerd Font",
@@ -253,12 +302,22 @@ static HFONT find_pua_font(unsigned int cp)
     /* User-configured fonts take priority */
     for (int i = 0; i < g_kff.user_font_count; i++) {
         HFONT hf = make_fallback_hfont(g_kff.user_fonts[i]);
-        if (hf && font_has_glyph(hf, cp)) return hf;
+        bool has = hf && font_has_glyph(hf, cp);
+        if (g_kff_log_miss <= KFF_LOG_MISS_MAX)
+            kff_logw("[find_pua_font]   user ", g_kff.user_fonts[i]);
+        if (g_kff_log_miss <= KFF_LOG_MISS_MAX)
+            kff_log("                     hfont=%p has_glyph=%d", (void*)hf, (int)has);
+        if (has) return hf;
     }
     /* Then builtin list */
     for (int i = 0; kff_builtin_fonts[i]; i++) {
         HFONT hf = make_fallback_hfont(kff_builtin_fonts[i]);
-        if (hf && font_has_glyph(hf, cp)) return hf;
+        bool has = hf && font_has_glyph(hf, cp);
+        if (g_kff_log_miss <= KFF_LOG_MISS_MAX)
+            kff_logw("[find_pua_font]   builtin ", kff_builtin_fonts[i]);
+        if (g_kff_log_miss <= KFF_LOG_MISS_MAX)
+            kff_log("                     hfont=%p has_glyph=%d", (void*)hf, (int)has);
+        if (has) return hf;
     }
     return NULL;
 }
@@ -298,15 +357,25 @@ static HFONT find_dwrite_fallback(unsigned int cp, int *out_glyph_px)
         &mapped_font,
         &scale);
 
-    if (FAILED(hr) || !mapped_font) return NULL;
-    if (mapped_len < wlen) { mapped_font->Release(); return NULL; }
+    if (FAILED(hr) || !mapped_font) {
+        kff_log("[find_dwrite_fallback] cp=0x%04X MapCharacters FAILED hr=0x%08X", cp, (unsigned)hr);
+        return NULL;
+    }
+    if (mapped_len < wlen) {
+        kff_log("[find_dwrite_fallback] cp=0x%04X partial mapping mapped_len=%u wlen=%u", cp, mapped_len, wlen);
+        mapped_font->Release();
+        return NULL;
+    }
 
     /* Convert IDWriteFont → LOGFONTW → HFONT */
     LOGFONTW lfw;
     BOOL     is_sys;
     hr = g_kff.dw_gdi_interop->ConvertFontToLOGFONT(mapped_font, &lfw, &is_sys);
     mapped_font->Release();
-    if (FAILED(hr)) return NULL;
+    if (FAILED(hr)) {
+        kff_log("[find_dwrite_fallback] cp=0x%04X ConvertFontToLOGFONT FAILED hr=0x%08X", cp, (unsigned)hr);
+        return NULL;
+    }
 
     /* Override metrics to match primary font height */
     lfw.lfHeight  = g_kff.primary_lfw.lfHeight;
@@ -316,6 +385,13 @@ static HFONT find_dwrite_fallback(unsigned int cp, int *out_glyph_px)
     HFONT hf = pool_get_or_create(&lfw);
     if (hf && out_glyph_px)
         *out_glyph_px = measure_glyph_px(hf, cp);
+    if (g_kff_log_miss <= KFF_LOG_MISS_MAX) {
+        char narrow[256];
+        WideCharToMultiByte(CP_ACP, 0, lfw.lfFaceName, -1, narrow, sizeof(narrow)-1, NULL, NULL);
+        narrow[sizeof(narrow)-1] = '\0';
+        kff_log("[find_dwrite_fallback] cp=0x%04X -> font=\"%s\" glyph_px=%d",
+                cp, narrow, out_glyph_px ? *out_glyph_px : 0);
+    }
     return hf;
 }
 
@@ -328,6 +404,10 @@ extern "C" {
 void kff_init(HFONT primary_hfont, const LOGFONT *primary_lf, int quality)
 {
     kff_deinit();
+    kff_log_open();
+    kff_log("[kff_init] called: lfHeight=%d quality=%d", primary_lf->lfHeight, quality);
+    kff_log("[kff_init] primary font: \"%s\"", primary_lf->lfFaceName);
+    kff_log("[kff_init] primary_hfont=%p", (void*)primary_hfont);
 
     g_kff.primary_hfont = primary_hfont;
     g_kff.quality       = quality;
@@ -356,19 +436,28 @@ void kff_init(HFONT primary_hfont, const LOGFONT *primary_lf, int quality)
             g_kff.primary_cell_px = tm.tmAveCharWidth;
         }
     }
+    kff_log("[kff_init] primary_cell_px=%d", g_kff.primary_cell_px);
 
     HRESULT hr = DWriteCreateFactory(
         DWRITE_FACTORY_TYPE_SHARED,
         __uuidof(IDWriteFactory2),
         (IUnknown **)&g_kff.dw_factory);
-    if (FAILED(hr) || !g_kff.dw_factory) return;
+    if (FAILED(hr) || !g_kff.dw_factory) {
+        kff_log("[kff_init] DWriteCreateFactory: hr=0x%08X FAILED", (unsigned)hr);
+        return;
+    }
+    kff_log("[kff_init] DWriteCreateFactory: hr=0x%08X OK", (unsigned)hr);
 
     hr = g_kff.dw_factory->GetSystemFontFallback(&g_kff.dw_fallback);
+    kff_log("[kff_init] GetSystemFontFallback: hr=0x%08X %s",
+            (unsigned)hr, SUCCEEDED(hr) ? "OK" : "FAILED");
     if (FAILED(hr)) {
         g_kff.dw_factory->Release(); g_kff.dw_factory = NULL; return;
     }
 
     hr = g_kff.dw_factory->GetGdiInterop(&g_kff.dw_gdi_interop);
+    kff_log("[kff_init] GetGdiInterop: hr=0x%08X %s",
+            (unsigned)hr, SUCCEEDED(hr) ? "OK" : "FAILED");
     if (FAILED(hr)) {
         g_kff.dw_fallback->Release(); g_kff.dw_fallback = NULL;
         g_kff.dw_factory->Release();  g_kff.dw_factory  = NULL;
@@ -376,10 +465,13 @@ void kff_init(HFONT primary_hfont, const LOGFONT *primary_lf, int quality)
     }
 
     g_kff.initialized = true;
+    kff_log("[kff_init] initialized = true");
 }
 
 void kff_deinit(void)
 {
+    kff_log("[kff_deinit] called");
+    kff_log_close();
     pool_free_all();
     cache_clear();
 
@@ -396,12 +488,14 @@ void kff_deinit(void)
 
 void kff_set_user_fonts(const wchar_t **names, int count)
 {
+    kff_log("[kff_set_user_fonts] called with count=%d", count);
     g_kff.user_font_count = 0;
     if (count > 8) count = 8;
     for (int i = 0; i < count; i++) {
         wcsncpy(g_kff.user_fonts[i], names[i], LF_FACESIZE - 1);
         g_kff.user_fonts[i][LF_FACESIZE - 1] = L'\0';
         g_kff.user_font_count++;
+        kff_logw("[kff_set_user_fonts]   added: ", g_kff.user_fonts[i]);
     }
     cache_clear();
 }
@@ -416,11 +510,22 @@ KffResult kff_lookup(unsigned int codepoint)
     KffResult cached;
     if (cache_get(codepoint, &cached)) return cached;
 
+    /* Cache miss — count and log (gated) */
+    if (g_kff_log_miss < KFF_LOG_MISS_MAX) {
+        g_kff_log_miss++;
+        kff_log("[kff_lookup] cp=0x%04X (cache miss #%d)", codepoint, g_kff_log_miss);
+    }
+
     /* 2. Primary font already has this glyph → no fallback needed */
     if (g_kff.primary_hfont && font_has_glyph(g_kff.primary_hfont, codepoint)) {
+        if (g_kff_log_miss <= KFF_LOG_MISS_MAX)
+            kff_log("[kff_lookup] cp=0x%04X primary font HAS glyph -> no fallback", codepoint);
         cache_set(codepoint, miss);
         return miss;
     }
+    if (g_kff_log_miss <= KFF_LOG_MISS_MAX)
+        kff_log("[kff_lookup] cp=0x%04X primary font missing glyph -> %s",
+                codepoint, is_pua(codepoint) ? "PUA path" : "DWrite path");
 
     KffResult result = miss;
 
@@ -440,6 +545,10 @@ KffResult kff_lookup(unsigned int codepoint)
             result.glyph_px = px;
         }
     }
+
+    if (g_kff_log_miss <= KFF_LOG_MISS_MAX)
+        kff_log("[kff_lookup] cp=0x%04X result: hfont=%p glyph_px=%d",
+                codepoint, (void*)result.hfont, result.glyph_px);
 
     cache_set(codepoint, result);
     return result;

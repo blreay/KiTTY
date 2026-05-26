@@ -2821,7 +2821,7 @@ static void init_fonts(int pick_width, int pick_height)
         if (inipath) {
             int i;
             for (i = 0; i < 8; i++) {
-                char key[24], val[LF_FACESIZE];
+                char key[24], val[256];
                 sprintf(key, "FallbackFont%d", i);
                 val[0] = '\0';
                 if (!readINI(inipath, "FontFallback", key, val) || val[0] == '\0')
