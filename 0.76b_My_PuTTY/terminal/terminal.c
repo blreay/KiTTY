@@ -12,6 +12,7 @@
 #include <assert.h>
 #include "putty.h"
 #include "terminal.h"
+#include "../../kitty_fontfallback.h"
 
 #ifdef MOD_FAR2L
 /* base64 library - needed for far2l extensions support */
@@ -4082,13 +4083,19 @@ int term_char_width(Terminal *term, unsigned int c)
 {
     /* For Private Use Area characters, use the font's actual glyph width.
      * wintw_char_width() will create a temporary HDC if needed. */
-    if (term && term->win &&
-        ((c >= 0xE000 && c <= 0xF8FF) ||    /* BMP PUA */
-         (c >= 0xF0000 && c <= 0xFFFFD) ||   /* Supplementary PUA-A */
-         (c >= 0x100000 && c <= 0x10FFFD))) { /* Supplementary PUA-B */
-        int font_w = win_char_width(term->win, c);
-        if (font_w > 0)
-            return font_w;
+    if ((c >= 0xE000  && c <= 0xF8FF)   ||
+        (c >= 0xF0000 && c <= 0xFFFFD)  ||
+        (c >= 0x100000&& c <= 0x10FFFD)) {
+        /* 1. Try primary font */
+        if (term && term->win) {
+            int font_w = win_char_width(term->win, c);
+            if (font_w > 0) return font_w;
+        }
+        /* 2. Try fallback font — correct width even when primary font lacks the glyph */
+        {
+            int fw = kff_char_width(c, 0);
+            if (fw > 0) return fw;
+        }
     }
     if (term)
         return term->cjk_ambig_wide ? mk_wcwidth_cjk(c) : mk_wcwidth(c);

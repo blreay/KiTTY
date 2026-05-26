@@ -30,6 +30,7 @@ typedef struct {
     HFONT    primary_hfont;
     LOGFONTW primary_lfw;
     int      quality;
+    int      primary_cell_px; /* measured cell width of primary font, px */
 
     KffCacheEntry cache[KFF_CACHE_BUCKETS];
     KffFontNode  *font_pool;
@@ -335,6 +336,19 @@ void kff_init(HFONT primary_hfont, const LOGFONT *primary_lf, int quality)
         primary_lf->lfFaceName, -1,
         g_kff.primary_lfw.lfFaceName, LF_FACESIZE);
 
+    /* Measure primary font's cell width for later use by kff_char_width */
+    {
+        HDC hdc = GetDC(NULL);
+        if (hdc) {
+            HGDIOBJ old = SelectObject(hdc, primary_hfont);
+            TEXTMETRICW tm;
+            GetTextMetricsW(hdc, &tm);
+            SelectObject(hdc, old);
+            ReleaseDC(NULL, hdc);
+            g_kff.primary_cell_px = tm.tmAveCharWidth;
+        }
+    }
+
     HRESULT hr = DWriteCreateFactory(
         DWRITE_FACTORY_TYPE_SHARED,
         __uuidof(IDWriteFactory2),
@@ -367,6 +381,7 @@ void kff_deinit(void)
 
     g_kff.initialized   = false;
     g_kff.primary_hfont = NULL;
+    g_kff.primary_cell_px = 0;
     g_kff.font_pool     = NULL;
 }
 
@@ -411,7 +426,10 @@ KffResult kff_lookup(unsigned int codepoint)
 
 int kff_char_width(unsigned int codepoint, int font_width)
 {
-    if (!g_kff.initialized || font_width <= 0) return 0;
+    if (!g_kff.initialized) return 0;
+    if (font_width <= 0)
+        font_width = g_kff.primary_cell_px;
+    if (font_width <= 0) return 0;
 
     KffResult r = kff_lookup(codepoint);
     if (!r.hfont || r.glyph_px <= 0) return 0;
