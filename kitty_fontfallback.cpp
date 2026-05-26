@@ -290,6 +290,7 @@ static HFONT find_dwrite_fallback(unsigned int cp, int *out_glyph_px)
         &scale);
 
     if (FAILED(hr) || !mapped_font) return NULL;
+    if (mapped_len < wlen) { mapped_font->Release(); return NULL; }
 
     /* Convert IDWriteFont → LOGFONTW → HFONT */
     LOGFONTW lfw;
