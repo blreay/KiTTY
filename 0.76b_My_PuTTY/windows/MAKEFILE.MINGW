@@ -280,7 +280,8 @@ plink.exe: agentf.o aqsync.o \
 		winshare.o storage.o wintime.o unicode.o x11.o x11fwd.o \
 		dll_hijacking_protection.o escape_registry_key.o filename.o fontspec.o get_username.o is_console_handle.o load_system32_dll.o open_for_write_would_lose_data.o platform_get_x_display.o win_strerror.o \
 		adb.o kitty_registry.o kitty_commun.o kitty_proxy.o kitty_ssh.o kitty_store.o kitty_tools.o \
-		../../base64/base64.a ../../bcrypt/bcrypt.a ../../mini/mini.a \
+		urlhack.o \
+		../../base64/base64.a ../../bcrypt/bcrypt.a ../../mini/mini.a ../../regex/libregex.a \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lole32 -lshell32 \
 		-luser32 \
 		-lwsock32
@@ -307,7 +308,8 @@ pscp.exe: agentf.o aqsync.o be_misc.o be_ssh.o callback.o clicons.o \
 		local-proxy.o security.o select-cli.o winsftp.o winshare.o \
 		storage.o wintime.o unicode.o x11fwd.o \
 		dll_hijacking_protection.o escape_registry_key.o filename.o fontspec.o get_username.o is_console_handle.o load_system32_dll.o open_for_write_would_lose_data.o platform_get_x_display.o win_strerror.o \
-		kitty_commun.o kitty_ssh.o kitty_tools.o kitty_registry.o kitty_store.o
+		kitty_commun.o kitty_ssh.o kitty_tools.o kitty_registry.o kitty_store.o \
+		urlhack.o
 	$(CC) $(LDFLAGS) -o $@ -Wl,-Map,pscp.map agentf.o aqsync.o be_misc.o \
 		be_ssh.o callback.o clicons.o cmdline.o conf.o console.o \
 		cproxy.o ecc-arithmetic.o errsock.o logging.o mainchan.o marshal.o \
@@ -331,7 +333,8 @@ pscp.exe: agentf.o aqsync.o be_misc.o be_ssh.o callback.o clicons.o \
 		winshare.o storage.o wintime.o unicode.o x11fwd.o \
 		dll_hijacking_protection.o escape_registry_key.o filename.o fontspec.o get_username.o is_console_handle.o load_system32_dll.o open_for_write_would_lose_data.o platform_get_x_display.o win_strerror.o \
 		kitty_commun.o kitty_ssh.o kitty_tools.o kitty_registry.o kitty_store.o \
-		../../base64/base64.a ../../bcrypt/bcrypt.a ../../mini/mini.a \
+		urlhack.o \
+		../../base64/base64.a ../../bcrypt/bcrypt.a ../../mini/mini.a ../../regex/libregex.a \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 \
 		-lole32 -lshell32 -luser32 \
 		-lwsock32
@@ -358,7 +361,8 @@ psftp.exe: agentf.o aqsync.o be_misc.o be_ssh.o callback.o clicons.o \
 		local-proxy.o security.o select-cli.o winsftp.o winshare.o \
 		storage.o wintime.o unicode.o x11fwd.o \
 		dll_hijacking_protection.o escape_registry_key.o filename.o fontspec.o get_username.o is_console_handle.o load_system32_dll.o open_for_write_would_lose_data.o platform_get_x_display.o win_strerror.o \
-		kitty_commun.o kitty_ssh.o kitty_tools.o kitty_registry.o kitty_store.o
+		kitty_commun.o kitty_ssh.o kitty_tools.o kitty_registry.o kitty_store.o \
+		urlhack.o
 	$(CC) $(LDFLAGS) -o $@ -Wl,-Map,psftp.map agentf.o aqsync.o \
 		be_misc.o be_ssh.o callback.o clicons.o cmdline.o conf.o \
 		console.o cproxy.o ecc-arithmetic.o errsock.o logging.o mainchan.o \
@@ -385,7 +389,8 @@ psftp.exe: agentf.o aqsync.o be_misc.o be_ssh.o callback.o clicons.o \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 \
 		-lole32 -lshell32 -luser32 \
 		kitty_commun.o kitty_ssh.o kitty_tools.o kitty_registry.o kitty_store.o \
-		../../base64/base64.a ../../bcrypt/bcrypt.a ../../mini/mini.a \
+		urlhack.o \
+		../../base64/base64.a ../../bcrypt/bcrypt.a ../../mini/mini.a ../../regex/libregex.a \
 		-lwsock32
 
 psocks.exe: be_misc.o callback.o conf.o console.o errsock.o logging.o \
@@ -466,8 +471,8 @@ putty.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		urlhack.o pageant_integrated.o winpageant_integrated.o winputtygen_integrated.o winpzmodem.o \
 		import.o rsag.o cryptodsa.o prime.o ecdsa.o bcrypt.o pockle.o primecandidate.o millerrabin.o mpunsafe.o \
 		void.o $(UTF8MOUSE_OBJS) \
-		../../base64/base64.a ../../bcrypt/bcrypt.a ../../blocnote/notepad.a ../../jpeg/libjpeg.a \
-		../../md5/MD5check.a ../../mini/mini.a ../../regex/libregex.a \
+		-Wl,--start-group ../../base64/base64.a ../../bcrypt/bcrypt.a ../../blocnote/notepad.a ../../jpeg/libjpeg.a \
+		../../md5/MD5check.a ../../mini/mini.a ../../regex/libregex.a -Wl,--end-group \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lpsapi -lole32 -lshell32 \
 		-luser32 -lwsock32  -lwtsapi32 \
 		#-lcrypt32 \
@@ -2398,11 +2403,16 @@ cross:
 cross64:
 	sed -i 's#^typedef enum _WTS_VIRTUAL_CLASS #// typedef enum _WTS_VIRTUAL_CLASS #' window.c
 	sed -i 's/0/999/' version_major.txt
-	make -e TOOLPATH=/usr/bin/x86_64-w64-mingw32- -f MAKEFILE.MINGW putty.exe || /usr/bin/x86_64-w64-mingw32-gcc -o kitty64.exe *.o ../../base64/base64_64.a ../../bcrypt/bcrypt_64.a ../../blocnote/notepad_64.a ../../jpeg/libjpeg_64.a ../../md5/MD5check_64.a ../../mini/mini_64.a ../../regex/libregex_64.a -ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lpsapi -lole32 -lshell32 -luser32 -lwsock32  -lwtsapi32 -mwindows
-	cp kitty64.exe /builds/kitty64_nocompress.exe
-	cp ../../mini/mini_64.a ../../mini/mini.a
-	cp ../../bcrypt/bcrypt_64.a ../../bcrypt/bcrypt.a
 	cp ../../base64/base64_64.a ../../base64/base64.a
+	cp ../../bcrypt/bcrypt_64.a ../../bcrypt/bcrypt.a
+	cp ../../blocnote/notepad_64.a ../../blocnote/notepad.a
+	cp ../../jpeg/libjpeg_64.a ../../jpeg/libjpeg.a
+	cp ../../md5/MD5check_64.a ../../md5/MD5check.a
+	cp ../../mini/mini_64.a ../../mini/mini.a
+	cp ../../regex/libregex_64.a ../../regex/libregex.a
+	make -e TOOLPATH=/usr/bin/x86_64-w64-mingw32- -f MAKEFILE.MINGW putty.exe || /usr/bin/x86_64-w64-mingw32-gcc -o kitty64.exe *.o ../../base64/base64_64.a ../../bcrypt/bcrypt_64.a ../../blocnote/notepad_64.a ../../jpeg/libjpeg_64.a ../../md5/MD5check_64.a ../../mini/mini_64.a ../../regex/libregex_64.a -ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lpsapi -lole32 -lshell32 -luser32 -lwsock32 -lwtsapi32 -mwindows
+	test -f kitty64.exe || mv putty.exe kitty64.exe
+	cp kitty64.exe /builds/kitty64_nocompress.exe
 	make -e TOOLPATH=/usr/bin/x86_64-w64-mingw32- -f MAKEFILE.MINGW plink.exe pscp.exe psftp.exe pageant.exe puttygen.exe
 	upx --best --compress-icons=2 --compress-exports=0 kitty64.exe
 	mv kitty64.exe /builds/kitty64.exe

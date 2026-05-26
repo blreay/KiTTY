@@ -5,7 +5,7 @@
 #include <stdarg.h>
 
 #ifdef MOD_PERSO
-NOTIFYICONDATA trayIcone ;
+extern NOTIFYICONDATA trayIcone ;
 int GetAskConfirmationFlag(void) ;
 int GetShowBalloonOnKeyUsage( void ) ;
 int ShowBalloonTip( NOTIFYICONDATA tnid, TCHAR  title[], TCHAR msg[] ) ;

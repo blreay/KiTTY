@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make -f MAKEFILE.MINGW cross64 -j 8)",
+      "Bash(make -f MAKEFILE.MINGW cross64)",
+      "Bash(make -f MAKEFILE.MINGW clean)",
+      "Bash(nm /builds/KiTTY/base64/base64_64.a)",
+      "Bash(nm /builds/KiTTY/mini/mini_64.a)",
+      "Bash(nm /builds/KiTTY/bcrypt/bcrypt_64.a)",
+      "Bash(nm /builds/KiTTY/url/re_lib/*.a)",
+      "Bash(nm /builds/KiTTY/regex/libregex_64.a)",
+      "Bash(make -f Makefile.mingw64)",
+      "Bash(make -e TOOLPATH=/usr/bin/x86_64-w64-mingw32- putty.exe)",
+      "Bash(make -e TOOLPATH=/usr/bin/x86_64-w64-mingw32- -f MAKEFILE.MINGW putty.exe)",
+      "Bash(x86_64-w64-mingw32-nm /builds/KiTTY/bcrypt/bcrypt_64.a)",
+      "Bash(x86_64-w64-mingw32-nm /builds/KiTTY/blocnote/notepad_64.a)",
+      "Bash(x86_64-w64-mingw32-nm /builds/KiTTY/jpeg/libjpeg_64.a)",
+      "Bash(x86_64-w64-mingw32-nm /builds/KiTTY/base64/base64.a)",
+      "Bash(nm /builds/KiTTY/jpeg/libjpeg.a)"
+    ]
+  }
+}

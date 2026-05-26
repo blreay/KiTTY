@@ -22,6 +22,11 @@
 #include <shellapi.h>
 
 #ifdef MOD_PERSO
+/* Definition of trayIcone - declared extern in pageant.h */
+NOTIFYICONDATA trayIcone;
+#endif
+
+#ifdef MOD_PERSO
 void scrumble_int();
 // Flag pour le fonctionnement en mode "portable" (gestion par fichiers)
 extern int IniFileFlag ;
@@ -35,7 +40,9 @@ extern int DirectoryBrowseFlag ;
 #include "../storage.h"
 
 static char pphrase[2048]="";
+#ifndef MOD_INTEGRATED_AGENT
 Conf *conf;
+#endif
 #endif
 
 #ifndef NO_SECURITY
@@ -1519,7 +1526,9 @@ static const PageantListenerClientVtable winpgnt_vtable = {
 
 static struct winpgnt_client wpc[1];
 
+#ifndef MOD_INTEGRATED_AGENT
 HINSTANCE hinst;
+#endif
 
 #ifndef MOD_INTEGRATED_AGENT
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
