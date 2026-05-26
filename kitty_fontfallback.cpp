@@ -411,8 +411,16 @@ KffResult kff_lookup(unsigned int codepoint)
 
 int kff_char_width(unsigned int codepoint, int font_width)
 {
-    (void)codepoint; (void)font_width;
-    return 0;
+    if (!g_kff.initialized || font_width <= 0) return 0;
+
+    KffResult r = kff_lookup(codepoint);
+    if (!r.hfont || r.glyph_px <= 0) return 0;
+
+    /* Round glyph_px to nearest cell count (1 or 2) */
+    int cells = (r.glyph_px + font_width / 2) / font_width;
+    if (cells < 1) cells = 1;
+    if (cells > 2) cells = 2;
+    return cells;
 }
 
 } /* extern "C" */
