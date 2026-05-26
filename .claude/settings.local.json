@@ -16,7 +16,11 @@
       "Bash(x86_64-w64-mingw32-nm /builds/KiTTY/blocnote/notepad_64.a)",
       "Bash(x86_64-w64-mingw32-nm /builds/KiTTY/jpeg/libjpeg_64.a)",
       "Bash(x86_64-w64-mingw32-nm /builds/KiTTY/base64/base64.a)",
-      "Bash(nm /builds/KiTTY/jpeg/libjpeg.a)"
+      "Bash(nm /builds/KiTTY/jpeg/libjpeg.a)",
+      "Bash(git *)",
+      "Bash(make -j 8 -f MAKEFILE.MINGW cross64)",
+      "Bash(awk *)",
+      "Bash(python3 *)"
     ]
   }
 }

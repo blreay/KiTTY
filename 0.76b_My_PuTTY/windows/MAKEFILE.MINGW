@@ -200,7 +200,7 @@ all: pageant.exe plink.exe pscp.exe psftp.exe psocks.exe putty.exe \
 		puttygen.exe puttytel.exe testcrypt.exe
 
 pageant.exe: aqsync.o be_misc.o callback.o conf.o ecc-arithmetic.o errsock.o marshal.o \
-		memory.o misc.o mpint.o pageant.o pageant.res.o aes.o \
+		memory.o misc.o mpint.o noterm.o pageant.o pageant.res.o aes.o \
 		argon2.o pubkey-ppk.o blake2.o des.o dsa.o \
 		ecc-ssh.o hmac.o md5.o sshpubk.o rsa.o sha256.o \
 		sha512.o sha1.o sha3.o stripctrl.o tree234.o utils.o \
@@ -212,7 +212,7 @@ pageant.exe: aqsync.o be_misc.o callback.o conf.o ecc-arithmetic.o errsock.o mar
 		kitty_commun.o kitty_crypt.o kitty_registry.o
 	$(CC) -mwindows $(LDFLAGS) -o $@ -Wl,-Map,pageant.map aqsync.o \
 		be_misc.o callback.o conf.o ecc-arithmetic.o errsock.o marshal.o \
-		memory.o misc.o mpint.o pageant.o pageant.res.o aes.o \
+		memory.o misc.o mpint.o noterm.o pageant.o pageant.res.o aes.o \
 		argon2.o pubkey-ppk.o blake2.o des.o dsa.o \
 		ecc-ssh.o hmac.o md5.o sshpubk.o rsa.o sha256.o \
 		sha512.o sha1.o sha3.o stripctrl.o tree234.o utils.o \
@@ -289,7 +289,7 @@ plink.exe: agentf.o aqsync.o \
 pscp.exe: agentf.o aqsync.o be_misc.o be_ssh.o callback.o clicons.o \
 		cmdline.o conf.o console.o cproxy.o ecc-arithmetic.o errsock.o \
 		logging.o mainchan.o marshal.o memory.o misc.o dup_mb_to_wc.o \
-		mpint.o nullplug.o pgssapi.o pinger.o portfwd.o proxy.o \
+		mpint.o noterm.o nullplug.o pgssapi.o pinger.o portfwd.o proxy.o \
 		pscp.o pscp.res.o psftpcommon.o settings.o sftp.o \
 		sftpcommon.o ssh.o bpp1.o censor1.o connection1.o \
 		connection1-client.o login1.o bpp2.o bpp-bare.o \
@@ -313,7 +313,7 @@ pscp.exe: agentf.o aqsync.o be_misc.o be_ssh.o callback.o clicons.o \
 	$(CC) $(LDFLAGS) -o $@ -Wl,-Map,pscp.map agentf.o aqsync.o be_misc.o \
 		be_ssh.o callback.o clicons.o cmdline.o conf.o console.o \
 		cproxy.o ecc-arithmetic.o errsock.o logging.o mainchan.o marshal.o \
-		memory.o misc.o dup_mb_to_wc.o mpint.o nullplug.o pgssapi.o \
+		memory.o misc.o dup_mb_to_wc.o mpint.o noterm.o nullplug.o pgssapi.o \
 		pinger.o portfwd.o proxy.o pscp.o pscp.res.o psftpcommon.o \
 		settings.o sftp.o sftpcommon.o ssh.o bpp1.o censor1.o \
 		connection1.o connection1-client.o login1.o \
@@ -342,7 +342,7 @@ pscp.exe: agentf.o aqsync.o be_misc.o be_ssh.o callback.o clicons.o \
 psftp.exe: agentf.o aqsync.o be_misc.o be_ssh.o callback.o clicons.o \
 		cmdline.o conf.o console.o cproxy.o ecc-arithmetic.o errsock.o \
 		logging.o mainchan.o marshal.o memory.o misc.o dup_mb_to_wc.o \
-		mpint.o nullplug.o pgssapi.o pinger.o portfwd.o proxy.o \
+		mpint.o noterm.o nullplug.o pgssapi.o pinger.o portfwd.o proxy.o \
 		psftp.o psftp.res.o psftpcommon.o settings.o sftp.o \
 		sftpcommon.o ssh.o bpp1.o censor1.o connection1.o \
 		connection1-client.o login1.o bpp2.o bpp-bare.o \
@@ -366,7 +366,7 @@ psftp.exe: agentf.o aqsync.o be_misc.o be_ssh.o callback.o clicons.o \
 	$(CC) $(LDFLAGS) -o $@ -Wl,-Map,psftp.map agentf.o aqsync.o \
 		be_misc.o be_ssh.o callback.o clicons.o cmdline.o conf.o \
 		console.o cproxy.o ecc-arithmetic.o errsock.o logging.o mainchan.o \
-		marshal.o memory.o misc.o dup_mb_to_wc.o mpint.o nullplug.o \
+		marshal.o memory.o misc.o dup_mb_to_wc.o mpint.o noterm.o nullplug.o \
 		pgssapi.o pinger.o portfwd.o proxy.o psftp.o psftp.res.o \
 		psftpcommon.o settings.o sftp.o sftpcommon.o ssh.o bpp1.o \
 		censor1.o connection1.o connection1-client.o \
@@ -394,14 +394,14 @@ psftp.exe: agentf.o aqsync.o be_misc.o be_ssh.o callback.o clicons.o \
 		-lwsock32
 
 psocks.exe: be_misc.o callback.o conf.o console.o errsock.o logging.o \
-		marshal.o memory.o misc.o nocproxy.o norand.o portfwd.o \
+		marshal.o memory.o misc.o nocproxy.o norand.o noterm.o portfwd.o \
 		proxy.o psocks.o sshutils.o stripctrl.o ltime.o timing.o \
 		tree234.o utils.o version.o wcwidth.o cliloop.o wincons.o \
 		handle-io.o handle-socket.o network.o \
 		nohelp.o local-proxy.o select-cli.o winsocks.o
 	$(CC) $(LDFLAGS) -o $@ -Wl,-Map,psocks.map be_misc.o callback.o \
 		conf.o console.o errsock.o logging.o marshal.o memory.o \
-		misc.o nocproxy.o norand.o portfwd.o proxy.o psocks.o \
+		misc.o nocproxy.o norand.o noterm.o portfwd.o proxy.o psocks.o \
 		sshutils.o stripctrl.o ltime.o timing.o tree234.o utils.o \
 		version.o wcwidth.o cliloop.o wincons.o handle-io.o \
 		handle-socket.o network.o nohelp.o \
@@ -480,7 +480,7 @@ putty.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		# -lcomctl32 -lwinmm -lwinspool -lole32 
 		
 puttygen.exe: conf.o ecc-arithmetic.o import.o marshal.o memory.o millerrabin.o misc.o \
-		mpint.o mpunsafe.o notiming.o pockle.o primecandidate.o \
+		mpint.o mpunsafe.o noterm.o notiming.o pockle.o primecandidate.o \
 		puttygen.res.o smallprimes.o aes.o argon2.o \
 		pubkey-ppk.o bcrypt.o blake2.o blowfish.o des.o \
 		dsa.o cryptodsa.o ecc-ssh.o ecdsa.o hmac.o md5.o \
@@ -493,7 +493,7 @@ puttygen.exe: conf.o ecc-arithmetic.o import.o marshal.o memory.o millerrabin.o 
 		kitty_commun.o kitty_crypt.o kitty_registry.o kitty_keygen.o kitty_store.o kitty_tools.o
 	$(CC) -mwindows $(LDFLAGS) -o $@ -Wl,-Map,puttygen.map conf.o ecc-arithmetic.o \
 		import.o marshal.o memory.o millerrabin.o misc.o mpint.o \
-		mpunsafe.o notiming.o pockle.o primecandidate.o \
+		mpunsafe.o noterm.o notiming.o pockle.o primecandidate.o \
 		puttygen.res.o smallprimes.o aes.o argon2.o \
 		pubkey-ppk.o bcrypt.o blake2.o blowfish.o des.o \
 		dsa.o cryptodsa.o ecc-ssh.o ecdsa.o hmac.o md5.o \

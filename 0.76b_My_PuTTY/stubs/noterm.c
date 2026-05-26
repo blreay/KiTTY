@@ -9,3 +9,8 @@
 void term_nopaste(Terminal *term)
 {
 }
+
+int term_char_width(Terminal *term, unsigned int c)
+{
+    return 1; /* default: normal-width character */
+}
