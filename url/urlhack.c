@@ -15,6 +15,7 @@
 extern int debug_flag ;
 void debug_logevent( const char *fmt, ... ) ;
 
+/* Global variables - defined here, declared extern in urlhack.h */
 int urlhack_mouse_old_x = -1, urlhack_mouse_old_y = -1, urlhack_current_region = -1;
 
 static text_region **link_regions;

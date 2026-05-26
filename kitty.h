@@ -263,7 +263,7 @@ extern int AntiIdleCount ;
 extern int AntiIdleCountMax ;
 extern char AntiIdleStr[128] ;
 
-NOTIFYICONDATA TrayIcone ;
+extern NOTIFYICONDATA TrayIcone ;
 #ifndef MYWM_NOTIFYICON
 #define MYWM_NOTIFYICON		(WM_USER+3)
 #endif

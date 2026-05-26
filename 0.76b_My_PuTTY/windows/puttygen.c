@@ -29,7 +29,9 @@
 static char *cmdline_keyfile = NULL;
 
 #ifdef MOD_PERSO
+#ifndef MOD_INTEGRATED_KEYGEN
 Conf *conf;
+#endif
 #endif
 #ifndef MOD_INTEGRATED_KEYGEN
 /*
@@ -1996,13 +1998,13 @@ static INT_PTR CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 }
 
 #ifndef MOD_INTEGRATED_KEYGEN
+HINSTANCE hinst;
+
 void cleanup_exit(int code)
 {
     shutdown_help();
     exit(code);
 }
-
-HINSTANCE hinst;
 
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 #else

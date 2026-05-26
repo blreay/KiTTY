@@ -9,8 +9,8 @@
 
 typedef struct { int x0, y0, x1, y1; } text_region;
 
-const char* urlhack_default_regex;
-const char* urlhack_liberal_regex;
+extern const char* urlhack_default_regex;
+extern const char* urlhack_liberal_regex;
 
 enum {
     URLHACK_REGEX_CUSTOM = 0,
@@ -18,7 +18,7 @@ enum {
     URLHACK_REGEX_LIBERAL,
 };
 
-int urlhack_mouse_old_x, urlhack_mouse_old_y, urlhack_current_region;
+extern int urlhack_mouse_old_x, urlhack_mouse_old_y, urlhack_current_region;
 
 void urlhack_reset();
 void urlhack_go_find_me_some_hyperlinks(int screen_width);
