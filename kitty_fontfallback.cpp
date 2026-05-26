@@ -254,6 +254,61 @@ static HFONT find_pua_font(unsigned int cp)
     return NULL;
 }
 
+static HFONT find_dwrite_fallback(unsigned int cp, int *out_glyph_px)
+{
+    if (!g_kff.dw_fallback || !g_kff.dw_gdi_interop) return NULL;
+
+    /* Encode codepoint as UTF-16 */
+    wchar_t wch[2];
+    UINT32  wlen;
+    if (cp < 0x10000) {
+        wch[0] = (wchar_t)cp;
+        wlen = 1;
+    } else {
+        UINT32 v = cp - 0x10000;
+        wch[0] = (wchar_t)(0xD800 + (v >> 10));
+        wch[1] = (wchar_t)(0xDC00 + (v & 0x3FF));
+        wlen = 2;
+    }
+
+    KffAnalysisSource source(wch, wlen);
+
+    UINT32        mapped_len  = 0;
+    IDWriteFont  *mapped_font = NULL;
+    FLOAT         scale       = 1.0f;
+
+    HRESULT hr = g_kff.dw_fallback->MapCharacters(
+        &source,
+        0, wlen,
+        NULL,                                /* use system font collection */
+        g_kff.primary_lfw.lfFaceName,
+        (DWRITE_FONT_WEIGHT)g_kff.primary_lfw.lfWeight,
+        g_kff.primary_lfw.lfItalic ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL,
+        DWRITE_FONT_STRETCH_NORMAL,
+        &mapped_len,
+        &mapped_font,
+        &scale);
+
+    if (FAILED(hr) || !mapped_font) return NULL;
+
+    /* Convert IDWriteFont → LOGFONTW → HFONT */
+    LOGFONTW lfw;
+    BOOL     is_sys;
+    hr = g_kff.dw_gdi_interop->ConvertFontToLOGFONT(mapped_font, &lfw, &is_sys);
+    mapped_font->Release();
+    if (FAILED(hr)) return NULL;
+
+    /* Override metrics to match primary font height */
+    lfw.lfHeight  = g_kff.primary_lfw.lfHeight;
+    lfw.lfWidth   = 0;
+    lfw.lfQuality = g_kff.primary_lfw.lfQuality;
+
+    HFONT hf = pool_get_or_create(&lfw);
+    if (hf && out_glyph_px)
+        *out_glyph_px = measure_glyph_px(hf, cp);
+    return hf;
+}
+
 /* ------------------------------------------------------------------ */
 /* Public API                                                           */
 /* ------------------------------------------------------------------ */
@@ -340,8 +395,13 @@ KffResult kff_lookup(unsigned int codepoint)
             result.glyph_px = measure_glyph_px(hf, codepoint);
         }
     } else {
-        /* 3b. Non-PUA (Box Drawing etc.): DWrite fallback — implemented in Task 4 */
-        (void)0;
+        /* 3b. Non-PUA (Box Drawing, Geometric Shapes, etc.): DWrite system fallback */
+        int px = 0;
+        HFONT hf = find_dwrite_fallback(codepoint, &px);
+        if (hf) {
+            result.hfont    = hf;
+            result.glyph_px = px;
+        }
     }
 
     cache_set(codepoint, result);
