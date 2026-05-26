@@ -6852,11 +6852,26 @@ static void wintw_draw_trust_sigil(TermWin *tw, int x, int y)
 static int wintw_char_width(TermWin *tw, int uc)
 {
     int ibuf = 0;
+    HDC hdc;
+    bool need_free = false;
 
     /* If the font max is the same as the font ave width then this
-     * function is a no-op.
+     * function is a no-op, unless the character is in a Private Use Area
+     * where Nerd Font icons may have wider glyphs even in fixed-pitch fonts.
      */
-    if (!font_dualwidth) return 1;
+    if (!font_dualwidth &&
+        !((uc >= 0xE000 && uc <= 0xF8FF) ||
+          (uc >= 0xF0000 && uc <= 0xFFFFD) ||
+          (uc >= 0x100000 && uc <= 0x10FFFD)))
+	return 1;
+
+    hdc = wintw_hdc;
+    if (!hdc) {
+	hdc = make_hdc();
+	if (!hdc)
+	    return 0;
+	need_free = true;
+    }
 
     switch (uc & CSET_MASK) {
       case CSET_ASCII:
@@ -6870,39 +6885,49 @@ static int wintw_char_width(TermWin *tw, int uc)
 	break;
     }
     if (DIRECT_FONT(uc)) {
-	if (ucsdata.dbcs_screenfont) return 1;
+	if (ucsdata.dbcs_screenfont) { if (need_free) free_hdc(hdc); return 1; }
 
 	/* Speedup, I know of no font where ascii is the wrong width */
-	if ((uc&~CSET_MASK) >= ' ' && (uc&~CSET_MASK)<= '~')
+	if ((uc&~CSET_MASK) >= ' ' && (uc&~CSET_MASK)<= '~') {
+	    if (need_free) free_hdc(hdc);
 	    return 1;
+	}
 
 	if ( (uc & CSET_MASK) == CSET_ACP ) {
-	    SelectObject(wintw_hdc, fonts[FONT_NORMAL]);
+	    SelectObject(hdc, fonts[FONT_NORMAL]);
 	} else if ( (uc & CSET_MASK) == CSET_OEMCP ) {
 	    another_font(FONT_OEM);
-	    if (!fonts[FONT_OEM]) return 0;
+	    if (!fonts[FONT_OEM]) { if (need_free) free_hdc(hdc); return 0; }
 
-	    SelectObject(wintw_hdc, fonts[FONT_OEM]);
-	} else
+	    SelectObject(hdc, fonts[FONT_OEM]);
+	} else {
+	    if (need_free) free_hdc(hdc);
 	    return 0;
+	}
 
-	if (GetCharWidth32(wintw_hdc, uc & ~CSET_MASK,
+	if (GetCharWidth32(hdc, uc & ~CSET_MASK,
                            uc & ~CSET_MASK, &ibuf) != 1 &&
-	    GetCharWidth(wintw_hdc, uc & ~CSET_MASK,
-                         uc & ~CSET_MASK, &ibuf) != 1)
+	    GetCharWidth(hdc, uc & ~CSET_MASK,
+                         uc & ~CSET_MASK, &ibuf) != 1) {
+	    if (need_free) free_hdc(hdc);
 	    return 0;
+	}
     } else {
 	/* Speedup, I know of no font where ascii is the wrong width */
-	if (uc >= ' ' && uc <= '~') return 1;
+	if (uc >= ' ' && uc <= '~') { if (need_free) free_hdc(hdc); return 1; }
 
-	SelectObject(wintw_hdc, fonts[FONT_NORMAL]);
-	if (GetCharWidth32W(wintw_hdc, uc, uc, &ibuf) == 1)
+	SelectObject(hdc, fonts[FONT_NORMAL]);
+	if (GetCharWidth32W(hdc, uc, uc, &ibuf) == 1)
 	    /* Okay that one worked */ ;
-	else if (GetCharWidthW(wintw_hdc, uc, uc, &ibuf) == 1)
+	else if (GetCharWidthW(hdc, uc, uc, &ibuf) == 1)
 	    /* This should work on 9x too, but it's "less accurate" */ ;
-	else
+	else {
+	    if (need_free) free_hdc(hdc);
 	    return 0;
+	}
     }
+
+    if (need_free) free_hdc(hdc);
 
     ibuf += font_width / 2 -1;
     ibuf /= font_width;

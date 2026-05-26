@@ -3979,10 +3979,8 @@ static void term_print_finish(Terminal *term)
 
 int term_char_width(Terminal *term, unsigned int c)
 {
-    /* For Private Use Area characters, their width depends entirely on
-     * the font (e.g., Nerd Font icons are typically double-width).
-     * Consult the font's actual glyph width instead of relying on the
-     * static Unicode tables which have no standard width for PUA. */
+    /* For Private Use Area characters, use the font's actual glyph width.
+     * wintw_char_width() will create a temporary HDC if needed. */
     if (term && term->win &&
         ((c >= 0xE000 && c <= 0xF8FF) ||    /* BMP PUA */
          (c >= 0xF0000 && c <= 0xFFFFD) ||   /* Supplementary PUA-A */
