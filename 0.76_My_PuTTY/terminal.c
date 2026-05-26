@@ -3991,7 +3991,9 @@ int term_char_width(Terminal *term, unsigned int c)
         if (font_w > 0)
             return font_w;
     }
-    return term->cjk_ambig_wide ? mk_wcwidth_cjk(c) : mk_wcwidth(c);
+    if (term)
+        return term->cjk_ambig_wide ? mk_wcwidth_cjk(c) : mk_wcwidth(c);
+    return mk_wcwidth(c);
 }
 
 static void term_display_graphic_char(Terminal *term, unsigned long c)

@@ -54,6 +54,21 @@ KiTTY has all the features from the original software, and adds many others as d
 
 KiTTY is available at our main CDN: [Fosshub](https://www.fosshub.com/KiTTY.html).
 
+## How to compile(The best way)
+The best way to compile KiTTY is to use our cross-compile docker image:
+
+For 32 bits compilation
+```
+mkdir -p builds 2> /dev/null || rm -f builds/*.exe
+docker run --rm -it -v $(pwd)/builds:/builds -e USR_UID=$(id -u) -e USR_GID=$(id -g) cyd01/cross-gcc "git clone https://github.com/cyd01/KiTTY.git ; cd KiTTY/0.76b_My_PuTTY/windows ; make -f MAKEFILE.MINGW cross ; cd /builds ; ls -l"
+```
+For 64 bits compilation
+```
+mkdir -p builds 2> /dev/null || rm -f builds/*.exe
+docker run --rm -it -v $(pwd)/builds:/builds -e USR_UID=$(id -u) -e USR_GID=$(id -g) cyd01/cross-gcc "git clone https://github.com/cyd01/KiTTY.git ; cd KiTTY/0.76b_My_PuTTY/windows ; make -f MAKEFILE.MINGW cross64 ; cd /builds ; ls -l"
+```
+The kitty.exe and other stuff will be available into /builds directory.
+
 ## How to compile
 Inside your MSYS & MinGW32 environment jump into the x.yy_My_PuTTY\windows directory then run the command:
 
