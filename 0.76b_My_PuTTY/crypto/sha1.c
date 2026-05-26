@@ -344,7 +344,11 @@ const ssh_hashalg ssh_sha1_sw = {
 
 #include <wmmintrin.h>
 #include <smmintrin.h>
+#if defined(__x86_64__) || defined(_M_X64)
 #include <immintrin.h>
+#else
+#define _IMMINTRIN_H_INCLUDED
+#endif
 #if defined(__clang__) || defined(__GNUC__)
 #include <shaintrin.h>
 #endif
