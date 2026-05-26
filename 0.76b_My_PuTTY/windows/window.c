@@ -6665,30 +6665,106 @@ static void do_text_internal(
 
             for (i = 0; i < len; i++)
                 wbuf[i] = text[i];
+
+            /* --- Font fallback: check if any character needs a different font --- */
+            {
+                int draw_y = y - font_height * (lattr == LATTR_BOT) + text_adjust;
+                int needs_fallback = 0;
+                int fi;
+                for (fi = 0; fi < len && !needs_fallback; fi++) {
+                    unsigned int cp = (unsigned int)wbuf[fi];
+                    if (fi + 1 < len && IS_SURROGATE_PAIR(wbuf[fi], wbuf[fi+1]))
+                        cp = 0x10000u + ((wbuf[fi]-0xD800u)<<10) + (wbuf[fi+1]-0xDC00u);
+                    if (kff_lookup(cp).hfont)
+                        needs_fallback = 1;
+                }
+
+                if (!needs_fallback) {
+                    /* Fast path: all chars use the primary font */
 #if (defined MOD_BACKGROUNDIMAGE) && (!defined FLJ)
  	/* print Glyphs as they are, without Windows' Shaping*/
 	if( GetBackgroundImageFlag() && (!PuttyFlag) )
- 	// exact_textout(hdc, x, y - font_height * (lattr == LATTR_BOT) + text_adjust,
-	// 	      &line_box, wbuf, len, lpDx, !(attr & TATTR_COMBINING) &&!transBg);
-		exact_textout(hdc, x + xoffset, 
-			y - font_height * (lattr == LATTR_BOT) + text_adjust,
-			&line_box, wbuf, len, lpDx, 
+		exact_textout(hdc, x + xoffset, draw_y,
+			&line_box, wbuf, len, lpDx,
 			!(attr & TATTR_COMBINING) &&!transBg);
 	else
 #endif
-            /* print Glyphs as they are, without Windows' Shaping*/
-            general_textout(wintw_hdc, x + xoffset,
-                            y - font_height * (lattr==LATTR_BOT) + text_adjust,
-                            &line_box, wbuf, len, lpDx,
-                            opaque && !(attr & TATTR_COMBINING));
+                    general_textout(wintw_hdc, x + xoffset, draw_y,
+                                    &line_box, wbuf, len, lpDx,
+                                    opaque && !(attr & TATTR_COMBINING));
 
-            /* And the shadow bold hack. */
-            if (bold_font_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
-                SetBkMode(wintw_hdc, TRANSPARENT);
-                ExtTextOutW(wintw_hdc, x + xoffset - 1,
-                            y - font_height * (lattr ==
-                                               LATTR_BOT) + text_adjust,
-                            ETO_CLIPPED, &line_box, wbuf, len, lpDx_maybe);
+                    if (bold_font_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
+                        SetBkMode(wintw_hdc, TRANSPARENT);
+                        ExtTextOutW(wintw_hdc, x + xoffset - 1, draw_y,
+                                    ETO_CLIPPED, &line_box, wbuf, len, lpDx_maybe);
+                    }
+                } else {
+                    /* Fallback path: draw run as per-font segments */
+                    int seg_x = x + xoffset;
+                    int i2 = 0;
+                    int seg_opaque = opaque && !(attr & TATTR_COMBINING);
+
+                    while (i2 < len) {
+                        /* Determine codepoint and wchar count for current char */
+                        unsigned int cp = (unsigned int)wbuf[i2];
+                        int ch_wchars = 1;
+                        if (i2 + 1 < len && IS_SURROGATE_PAIR(wbuf[i2], wbuf[i2+1])) {
+                            cp = 0x10000u + ((wbuf[i2]-0xD800u)<<10) + (wbuf[i2+1]-0xDC00u);
+                            ch_wchars = 2;
+                        }
+                        KffResult fb = kff_lookup(cp);
+                        HFONT seg_font = fb.hfont ? fb.hfont : fonts[nfont];
+
+                        /* Extend segment while consecutive chars map to the same font */
+                        int j = i2 + ch_wchars;
+                        while (j < len) {
+                            unsigned int cp2 = (unsigned int)wbuf[j];
+                            int ch2 = 1;
+                            if (j + 1 < len && IS_SURROGATE_PAIR(wbuf[j], wbuf[j+1])) {
+                                cp2 = 0x10000u + ((wbuf[j]-0xD800u)<<10) + (wbuf[j+1]-0xDC00u);
+                                ch2 = 2;
+                            }
+                            KffResult fb2 = kff_lookup(cp2);
+                            HFONT f2 = fb2.hfont ? fb2.hfont : fonts[nfont];
+                            if (f2 != seg_font) break;
+                            j += ch2;
+                        }
+
+                        /* Centering: if fallback glyph narrower than cell, offset inward */
+                        int fb_xoff = 0;
+                        if (fb.hfont && fb.glyph_px > 0 && lpDx[i2] > 0 &&
+                            fb.glyph_px < lpDx[i2])
+                            fb_xoff = (lpDx[i2] - fb.glyph_px) / 2;
+
+                        /* Compute segment pixel width from lpDx */
+                        int seg_w = 0;
+                        int k;
+                        for (k = i2; k < j; k++) seg_w += lpDx[k];
+
+                        RECT seg_box = line_box;
+                        seg_box.left  = seg_x;
+                        seg_box.right = seg_x + seg_w;
+
+                        SelectObject(wintw_hdc, seg_font);
+                        ExtTextOutW(wintw_hdc, seg_x + fb_xoff, draw_y,
+                                    ETO_CLIPPED | (seg_opaque ? ETO_OPAQUE : 0),
+                                    &seg_box, wbuf + i2, j - i2, lpDx + i2);
+
+                        if (bold_font_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
+                            SetBkMode(wintw_hdc, TRANSPARENT);
+                            ExtTextOutW(wintw_hdc, seg_x + fb_xoff - 1, draw_y,
+                                        ETO_CLIPPED, &seg_box,
+                                        wbuf + i2, j - i2, lpDx + i2);
+                        }
+
+                        seg_x += seg_w;
+                        seg_opaque = 0;
+                        SetBkMode(wintw_hdc, TRANSPARENT);
+                        i2 = j;
+                    }
+                    /* Restore primary font for subsequent GDI calls */
+                    SelectObject(wintw_hdc, fonts[nfont]);
+                }
             }
         }
 
