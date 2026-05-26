@@ -414,7 +414,7 @@ putty.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		sshutils.o sshverstring.o sshzlib.o stripctrl.o supdup.o \
 		telnet.o terminal.o timing.o tree234.o utils.o version.o \
 		wcwidth.o wildcard.o wincapi.o wincfg.o winctrls.o windefs.o \
-		windlg.o window.o wingss.o winhandl.o winhelp.o winhsock.o \
+		windlg.o window.o fontfallback.o wingss.o winhandl.o winhelp.o winhsock.o \
 		winjump.o winmisc.o winmiscs.o winnet.o winnoise.o winnpc.o \
 		winnps.o winpgntc.o winprint.o winproxy.o winsecur.o \
 		winselgui.o winser.o winshare.o winstore.o wintime.o \
@@ -444,7 +444,7 @@ putty.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		sshutils.o sshverstring.o sshzlib.o stripctrl.o supdup.o \
 		telnet.o terminal.o timing.o tree234.o utils.o version.o \
 		wcwidth.o wildcard.o wincapi.o wincfg.o winctrls.o windefs.o \
-		windlg.o window.o wingss.o winhandl.o winhelp.o winhsock.o \
+		windlg.o window.o fontfallback.o wingss.o winhandl.o winhelp.o winhsock.o \
 		winjump.o winmisc.o winmiscs.o winnet.o winnoise.o winnpc.o \
 		winnps.o winpgntc.o winprint.o winproxy.o winsecur.o \
 		winselgui.o winser.o winshare.o winstore.o wintime.o \
@@ -497,7 +497,7 @@ puttytel.exe: be_misc.o be_nos_s.o callback.o cmdline.o conf.o config.o \
 		pinger.o proxy.o puttytel.res.o raw.o rlogin.o sessprep.o \
 		settings.o sizetip.o stripctrl.o supdup.o telnet.o \
 		terminal.o timing.o tree234.o utils.o version.o wcwidth.o \
-		wincfg.o winctrls.o windefs.o windlg.o window.o winhandl.o \
+		wincfg.o winctrls.o windefs.o windlg.o window.o fontfallback.o winhandl.o \
 		winhelp.o winhsock.o winjump.o winmisc.o winmiscs.o winnet.o \
 		winprint.o winproxy.o winsecur.o winselgui.o winser.o \
 		winstore.o wintime.o winucs.o winutils.o
@@ -508,7 +508,7 @@ puttytel.exe: be_misc.o be_nos_s.o callback.o cmdline.o conf.o config.o \
 		proxy.o puttytel.res.o raw.o rlogin.o sessprep.o settings.o \
 		sizetip.o stripctrl.o supdup.o telnet.o terminal.o timing.o \
 		tree234.o utils.o version.o wcwidth.o wincfg.o winctrls.o \
-		windefs.o windlg.o window.o winhandl.o winhelp.o winhsock.o \
+		windefs.o windlg.o window.o fontfallback.o winhandl.o winhelp.o winhsock.o \
 		winjump.o winmisc.o winmiscs.o winnet.o winprint.o \
 		winproxy.o winsecur.o winselgui.o winser.o winstore.o \
 		wintime.o winucs.o winutils.o \
@@ -1743,6 +1743,14 @@ window.o: ../windows/window.c ../putty.h ../terminal.h ../storage.h \
 	-DBUILD_SUBVERSION=`cat version_minor.txt` \
 	-DMASTER_PASSWORD=`cat ../../masterpassword.txt` \
 	-DMOD_INTEGRATED_AGENT -DMOD_INTEGRATED_KEYGEN
+
+
+fontfallback.o: ../windows/fontfallback.c ../windows/fontfallback.h \
+		../putty.h ../terminal.h ../defs.h ../puttyps.h \
+		../network.h ../misc.h ../marshal.h ../sshsignals.h \
+		../windows/winstuff.h ../unix/unix.h ../puttymem.h \
+		../tree234.h ../windows/winhelp.h ../charset/charset.h
+	$(CC) $(COMPAT) $(CFLAGS) $(XFLAGS) -c ../windows/fontfallback.c
 
 wingss.o: ../windows/wingss.c ../putty.h ../pgssapi.h ../sshgss.h \
 		../sshgssc.h ../misc.h ../defs.h ../puttyps.h ../network.h \

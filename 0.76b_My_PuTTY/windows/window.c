@@ -253,6 +253,7 @@ static HBITMAP caretbm;
 static int urlhack_cursor_is_hand = 0;
 void urlhack_enable(void);
 #endif
+#include "fontfallback.h"
 #ifdef MOD_SAVEDUMP
 void SaveDump( void ) ;
 #endif
@@ -2784,6 +2785,9 @@ static void init_fonts(int pick_width, int pick_height)
 	    fontsize[i] = -i;
     }
 
+    /* Initialize font fallback system before releasing DC */
+    ffb_init(hdc, fonts[FONT_NORMAL], font_width);
+
     ReleaseDC(wgs.term_hwnd, hdc);
 
     if (trust_icon != INVALID_HANDLE_VALUE) {
@@ -2885,6 +2889,7 @@ static void another_font(int fontno)
 static void deinit_fonts(void)
 {
     int i;
+    ffb_cleanup();
     for (i = 0; i < FONT_MAXNO; i++) {
 	if (fonts[i])
 	    DeleteObject(fonts[i]);
@@ -6660,6 +6665,134 @@ static void do_text_internal(
 
             for (i = 0; i < len; i++)
                 wbuf[i] = text[i];
+
+            /*
+             * Font fallback: for characters missing from the primary
+             * font, render them individually from a fallback font.
+             * We scan the run for fallback characters, render primary-
+             * font segments with general_textout, and render fallback
+             * characters one-at-a-time with ExtTextOutW using the
+             * fallback HFONT.
+             */
+            if (ffb_is_initialized() && len > 0) {
+                int fi;
+                bool any_fallback = false;
+
+                /* Quick scan: does any character need fallback? */
+                for (fi = 0; fi < len; fi++) {
+                    if (wbuf[fi] >= 0x80 && !DIRECT_FONT(wbuf[fi])) {
+                        HFONT fb = NULL;
+                        ffb_find_font(wintw_hdc, wbuf[fi], &fb, NULL, NULL);
+                        if (fb && fb != ffb_get_primary_font()) {
+                            any_fallback = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (any_fallback) {
+                    int seg_start = 0;
+                    int seg_x = x;
+                    HFONT orig_font = fonts[nfont];
+
+                    while (seg_start < len) {
+                        HFONT seg_font = NULL;
+                        int seg_end;
+
+                        /* Check if this character needs fallback */
+                        if (wbuf[seg_start] >= 0x80 && !DIRECT_FONT(wbuf[seg_start])) {
+                            ffb_find_font(wintw_hdc, wbuf[seg_start],
+                                          &seg_font, NULL, NULL);
+                            if (seg_font &&
+                                seg_font != ffb_get_primary_font()) {
+                                /* Fallback character - render solo */
+                                SelectObject(wintw_hdc, seg_font);
+                                ExtTextOutW(wintw_hdc,
+                                            seg_x + xoffset,
+                                            y - font_height * (lattr == LATTR_BOT) + text_adjust,
+                                            ETO_CLIPPED | (opaque ? ETO_OPAQUE : 0),
+                                            &line_box,
+                                            wbuf + seg_start, 1,
+                                            NULL);
+                                if (bold_font_mode == BOLD_SHADOW &&
+                                    (attr & ATTR_BOLD)) {
+                                    SetBkMode(wintw_hdc, TRANSPARENT);
+                                    ExtTextOutW(wintw_hdc,
+                                                seg_x + xoffset - 1,
+                                                y - font_height * (lattr == LATTR_BOT) + text_adjust,
+                                                ETO_CLIPPED, &line_box,
+                                                wbuf + seg_start, 1, NULL);
+                                }
+                                SelectObject(wintw_hdc, orig_font);
+                                seg_x += lpDx[seg_start];
+                                seg_start++;
+                                continue;
+                            }
+                        }
+
+                        /* Primary font segment - extend to next fallback */
+                        seg_font = orig_font;
+                        seg_end = seg_start + 1;
+                        while (seg_end < len) {
+                            if (wbuf[seg_end] >= 0x80 &&
+                                !DIRECT_FONT(wbuf[seg_end])) {
+                                HFONT fb2 = NULL;
+                                ffb_find_font(wintw_hdc, wbuf[seg_end],
+                                              &fb2, NULL, NULL);
+                                if (fb2 && fb2 != ffb_get_primary_font())
+                                    break; /* fallback char starts here */
+                            }
+                            seg_end++;
+                        }
+
+                        /* Render primary-font segment */
+                        SelectObject(wintw_hdc, seg_font);
+#if (defined MOD_BACKGROUNDIMAGE) && (!defined FLJ)
+                        if (GetBackgroundImageFlag() && (!PuttyFlag()))
+                            exact_textout(hdc,
+                                          seg_x + xoffset,
+                                          y - font_height * (lattr == LATTR_BOT) + text_adjust,
+                                          &line_box, wbuf + seg_start,
+                                          seg_end - seg_start,
+                                          lpDx + seg_start,
+                                          !(attr & TATTR_COMBINING) && !transBg);
+                        else
+#endif
+                        general_textout(wintw_hdc,
+                                        seg_x + xoffset,
+                                        y - font_height * (lattr==LATTR_BOT) + text_adjust,
+                                        &line_box, wbuf + seg_start,
+                                        seg_end - seg_start,
+                                        lpDx + seg_start,
+                                        opaque && !(attr & TATTR_COMBINING));
+
+                        if (bold_font_mode == BOLD_SHADOW &&
+                            (attr & ATTR_BOLD)) {
+                            SetBkMode(wintw_hdc, TRANSPARENT);
+                            ExtTextOutW(wintw_hdc,
+                                        seg_x + xoffset - 1,
+                                        y - font_height * (lattr == LATTR_BOT) + text_adjust,
+                                        ETO_CLIPPED, &line_box,
+                                        wbuf + seg_start,
+                                        seg_end - seg_start,
+                                        lpDx_maybe ? lpDx_maybe + seg_start : NULL);
+                        }
+
+                        {
+                            int dx_sum = 0;
+                            for (fi = seg_start; fi < seg_end; fi++)
+                                dx_sum += lpDx[fi];
+                            seg_x += dx_sum;
+                        }
+                        seg_start = seg_end;
+                    }
+
+                    /* Restore original font selection */
+                    SelectObject(wintw_hdc, orig_font);
+                    SetBkMode(wintw_hdc, opaque ? OPAQUE : TRANSPARENT);
+                    goto done_text_render;
+                }
+            }
 #if (defined MOD_BACKGROUNDIMAGE) && (!defined FLJ)
  	/* print Glyphs as they are, without Windows' Shaping*/
 	if( GetBackgroundImageFlag() && (!PuttyFlag) )
@@ -6687,6 +6820,7 @@ static void do_text_internal(
             }
         }
 
+        done_text_render:
         /*
          * If we're looping round again, stop erasing the background
          * rectangle.
@@ -6900,8 +7034,13 @@ static int wintw_char_width(TermWin *tw, int uc)
 	    /* Okay that one worked */ ;
 	else if (GetCharWidthW(wintw_hdc, uc, uc, &ibuf) == 1)
 	    /* This should work on 9x too, but it's "less accurate" */ ;
-	else
+	else {
+	    /* Primary font doesn't have this glyph; try fallback */
+	    int fb_width = ffb_char_width(wintw_hdc, (wchar_t)uc);
+	    if (fb_width > 0)
+		return fb_width;
 	    return 0;
+	}
     }
 
     ibuf += font_width / 2 -1;
