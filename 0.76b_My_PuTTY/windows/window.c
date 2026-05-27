@@ -2555,6 +2555,50 @@ static void init_dpi_info(void)
  *
  * - find a trust sigil icon that will look OK with the chosen font.
  */
+
+/*
+ * Recreate the font fallback subsystem using the current primary font.
+ * Call after init_fonts (or any time the primary font changes).
+ * Cleans up the old fallback state, parses the ini globals afresh,
+ * and registers fallback slots against the new primary metrics.
+ *
+ * If hdc is NULL, the helper acquires (and releases) its own DC so that
+ * call sites in reset_window that don't have an hdc handy can still use it.
+ */
+static void reinit_font_fallback(HDC hdc)
+{
+    bool own_hdc = (hdc == NULL);
+    if (own_hdc) hdc = GetDC(wgs.term_hwnd);
+    if (!hdc) {
+        winfb_logf(WINFB_LOG_ERROR, "reinit_font_fallback: no DC available");
+        return;
+    }
+
+    const char *ovr_lines[64];
+    int n_ovr = 0;
+    char ovr_buf[4096];
+    size_t buf_len = strlen(g_fb_overrides);
+    if (buf_len >= sizeof(ovr_buf)) buf_len = sizeof(ovr_buf) - 1;
+    memcpy(ovr_buf, g_fb_overrides, buf_len);
+    ovr_buf[buf_len] = '\0';
+    char *p = ovr_buf;
+    while (*p && n_ovr < 64) {
+        while (*p == ' ' || *p == '\t') p++;
+        if (!*p) break;
+        ovr_lines[n_ovr++] = p;
+        char *sep = strchr(p, ';');
+        if (!sep) break;
+        *sep = '\0';
+        p = sep + 1;
+    }
+    winfb_cleanup();  /* idempotent; safe if not initialised yet */
+    winfb_init(hdc, &lfont, font_width, font_height,
+               g_fb_fallback[0] ? g_fb_fallback : NULL,
+               n_ovr > 0 ? ovr_lines : NULL, n_ovr);
+
+    if (own_hdc) ReleaseDC(wgs.term_hwnd, hdc);
+}
+
 static void init_fonts(int pick_width, int pick_height)
 {
     TEXTMETRIC tm;
@@ -2790,31 +2834,9 @@ static void init_fonts(int pick_width, int pick_height)
 	    fontsize[i] = -i;
     }
 
-    /* font fallback init: parse ini-loaded Fallback CSV and Override
-     * lines, then initialise the fallback module. */
-    {
-        const char *ovr_lines[64];
-        int n_ovr = 0;
-        char ovr_buf[4096];
-        size_t buf_len = strlen(g_fb_overrides);
-        if (buf_len >= sizeof(ovr_buf)) buf_len = sizeof(ovr_buf) - 1;
-        memcpy(ovr_buf, g_fb_overrides, buf_len);
-        ovr_buf[buf_len] = '\0';
-        /* tokenize by ';' into independent line pointers */
-        char *p = ovr_buf;
-        while (*p && n_ovr < 64) {
-            while (*p == ' ' || *p == '\t') p++;
-            if (!*p) break;
-            ovr_lines[n_ovr++] = p;
-            char *sep = strchr(p, ';');
-            if (!sep) break;
-            *sep = '\0';
-            p = sep + 1;
-        }
-        winfb_init(hdc, &lfont, font_width, font_height,
-                   g_fb_fallback[0] ? g_fb_fallback : NULL,
-                   n_ovr > 0 ? ovr_lines : NULL, n_ovr);
-    }
+    /* font fallback init: read ini globals and register fallback slots
+     * against the freshly loaded primary font. */
+    reinit_font_fallback(hdc);
 
     ReleaseDC(wgs.term_hwnd, hdc);
 
@@ -3045,7 +3067,7 @@ static void reset_window(int reinit) {
 #endif
 	deinit_fonts();
 	init_fonts(0,0);
-	winfb_reset();
+	reinit_font_fallback(NULL);
     }
 
     /* Oh, looks like we're minimised */
@@ -3073,7 +3095,7 @@ static void reset_window(int reinit) {
 		font_height != win_height/term->rows) {
 		deinit_fonts();
 		init_fonts(win_width/term->cols, win_height/term->rows);
-		winfb_reset();
+		reinit_font_fallback(NULL);
 		offset_width = (win_width-font_width*term->cols)/2;
 		offset_height = (win_height-font_height*term->rows)/2;
                 InvalidateRect(wgs.term_hwnd, NULL, true);
@@ -3194,7 +3216,7 @@ static void reset_window(int reinit) {
 
 		    deinit_fonts();
 		    init_fonts(font_width, font_height);
-		    winfb_reset();
+		    reinit_font_fallback(NULL);
 
 		    width = (ss.right - ss.left - extra_width) / font_width;
 		    height = (ss.bottom - ss.top - extra_height) / font_height;
@@ -3231,9 +3253,9 @@ static void reset_window(int reinit) {
 	font_height != (win_height-window_border*2)/term->rows) {
 
 	deinit_fonts();
-	init_fonts((win_width-window_border*2)/term->cols, 
+	init_fonts((win_width-window_border*2)/term->cols,
 		   (win_height-window_border*2)/term->rows);
-	winfb_reset();
+	reinit_font_fallback(NULL);
 	offset_width = (win_width-font_width*term->cols)/2;
 	offset_height = (win_height-font_height*term->rows)/2;
 
