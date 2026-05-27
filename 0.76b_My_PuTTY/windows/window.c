@@ -6672,22 +6672,54 @@ static void do_text_internal(
 
             for (i = 0; i < len; i++)
                 wbuf[i] = text[i];
+
+            {
+                /* --- font fallback integration --- */
+                WinFB_Run fb_runs[64];
+                int fb_nruns = winfb_split(wbuf, len, fb_runs, 64);
+
+                if (fb_nruns == 1 && fb_runs[0].slot < 0) {
+                    /* All characters render with the primary font.
+                     * Use the existing path so RTL handling and the
+                     * built-in GDI font-linking for already-covered
+                     * CJK characters keep working. */
 #if (defined MOD_BACKGROUNDIMAGE) && (!defined FLJ)
- 	/* print Glyphs as they are, without Windows' Shaping*/
-	if( GetBackgroundImageFlag() && (!PuttyFlag) )
- 	// exact_textout(hdc, x, y - font_height * (lattr == LATTR_BOT) + text_adjust,
-	// 	      &line_box, wbuf, len, lpDx, !(attr & TATTR_COMBINING) &&!transBg);
-		exact_textout(hdc, x + xoffset, 
-			y - font_height * (lattr == LATTR_BOT) + text_adjust,
-			&line_box, wbuf, len, lpDx, 
-			!(attr & TATTR_COMBINING) &&!transBg);
-	else
-#endif
-            /* print Glyphs as they are, without Windows' Shaping*/
-            general_textout(wintw_hdc, x + xoffset,
-                            y - font_height * (lattr==LATTR_BOT) + text_adjust,
+                    if( GetBackgroundImageFlag() && (!PuttyFlag) )
+                        exact_textout(hdc, x + xoffset,
+                            y - font_height * (lattr == LATTR_BOT) + text_adjust,
                             &line_box, wbuf, len, lpDx,
-                            opaque && !(attr & TATTR_COMBINING));
+                            !(attr & TATTR_COMBINING) && !transBg);
+                    else
+#endif
+                    general_textout(wintw_hdc, x + xoffset,
+                                    y - font_height * (lattr==LATTR_BOT) + text_adjust,
+                                    &line_box, wbuf, len, lpDx,
+                                    opaque && !(attr & TATTR_COMBINING));
+                } else {
+                    /* At least one run uses a fallback font.
+                     * Use winfb_draw_runs which selects per-run HFONT
+                     * and respects the cell-clip rectangle. */
+                    int y_adj = y - font_height * (lattr == LATTR_BOT) + text_adjust;
+#if (defined MOD_BACKGROUNDIMAGE) && (!defined FLJ)
+                    HDC draw_dc = (GetBackgroundImageFlag() && (!PuttyFlag))
+                                  ? hdc : wintw_hdc;
+#else
+                    HDC draw_dc = wintw_hdc;
+#endif
+                    winfb_draw_runs(draw_dc, x + xoffset, y_adj,
+                                    &line_box, wbuf, len, lpDx,
+                                    fb_runs, fb_nruns,
+                                    opaque && !(attr & TATTR_COMBINING),
+                                    nfont,
+                                    (nfont & FONT_BOLD) != 0,
+#ifdef FONT_ITALIC
+                                    (nfont & FONT_ITALIC) != 0,
+#else
+                                    false,
+#endif
+                                    (nfont & FONT_UNDERLINE) != 0);
+                }
+            }
 
             /* And the shadow bold hack. */
             if (bold_font_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
