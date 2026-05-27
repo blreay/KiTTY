@@ -360,8 +360,17 @@ Override=1F600-1F64F:Segoe UI Emoji
 ## 13. 不在本设计范围
 
 - 彩色 emoji（COLR/CBDT/sbix）
+- **非 BMP 字符的真实 fallback**：MVP 路线 A 使用 `GetGlyphIndicesW`，该 API
+  以 UCS-2 code unit 为单位查询字形。代理对（surrogate pair）的高/低半区
+  在任何字体中都返回 `0xFFFF (.notdef)`，所以 emoji（U+1F600+）等 SMP
+  字符无法成功探测到 fallback 字体，会显示为主字体的 `.notdef` 方块。
+  解决方案需要切换到 Uniscribe（`ScriptItemize` + `ScriptShape`）或
+  DirectWrite — 二阶段交付。
+  **临时变通**：用户可在 `[FontFallback]` 中通过 `Override=` 显式映射
+  特定 SMP 范围（绕过探测），例如：
+  `Override=1F600-1F64F:Segoe UI Emoji`
 - 复杂脚本 shaping（阿拉伯连写、印度系组合）
 - 字体子像素 hinting / ClearType 控制改造
 - 自动从系统字体表中"未配置时也能命中 Nerd Font"的自动发现
 
-以上四项作为路线 C（DirectWrite）二阶段候选。
+以上五项作为路线 C（DirectWrite）二阶段候选。

@@ -30,8 +30,23 @@ Acceptance:
 Known limitations (MVP, route A: GDI + GetGlyphIndicesW)
 ========================================================
 
-1. Emoji renders monochrome. Color emoji (COLR/CBDT/sbix) requires
-   DirectWrite/Direct2D, which is a future second phase.
+1. Emoji renders monochrome at best. Non-BMP codepoints (U+10000 and
+   above — most emoji, some CJK extensions, math alphanumerics) are
+   NOT successfully fallback-mapped by the current GDI route, because
+   GetGlyphIndicesW evaluates surrogate halves individually and they
+   never map to a real glyph in any font. The cache records non-BMP
+   codepoints as "all-miss" and they render via primary-font .notdef.
+
+   Working around this requires Uniscribe (ScriptItemize+ScriptShape)
+   or DirectWrite, both deferred to the second phase. For now, BMP
+   characters (U+0000–U+FFFF — which includes Box Drawing, Block,
+   Geometric Shapes, Misc Symbols, Dingbats, Arrows, CJK Unified
+   Ideographs, Nerd Font PUA, and most everyday content) ARE
+   successfully fallback-mapped.
+
+   To work around the SMP limitation in the meantime, you may use:
+   Override=1F600-1F64F:Segoe UI Emoji
+   in [FontFallback] to force a slot assignment without probing.
 
 2. Fallback glyph baseline may differ by 1-2 px from the primary font.
    No vertical adjustment is applied; the glyph is allowed to ride at
@@ -62,3 +77,16 @@ Known limitations (MVP, route A: GDI + GetGlyphIndicesW)
 
 9. fontfallback.log defaults to OFF and lives next to the .exe.
    Rollover is single-generation at ~10 MB (.log -> .log.1).
+
+10. font_varpitch (variable-pitch) terminal fonts: fallback runs always
+    pass a non-NULL lpDx array to ExtTextOutW, which means GDI's
+    TA_CENTER positioning by native advance is bypassed. For the
+    overwhelmingly common monospace terminal case this has no effect.
+    Variable-pitch + fallback users may see uncentered fallback glyphs.
+
+11. After reset_window changes the primary font, the fallback subsystem
+    is reinitialised twice: once by init_fonts directly, then again
+    by the surrounding reset_window. The second pass is functionally
+    a no-op but does redo the EnumFontFamiliesEx install-check and
+    HFONT delete/recreate. Cost is < 10ms in practice. Future cleanup
+    can collapse this.

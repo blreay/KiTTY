@@ -3067,7 +3067,6 @@ static void reset_window(int reinit) {
 #endif
 	deinit_fonts();
 	init_fonts(0,0);
-	reinit_font_fallback(NULL);
     }
 
     /* Oh, looks like we're minimised */
@@ -3095,7 +3094,6 @@ static void reset_window(int reinit) {
 		font_height != win_height/term->rows) {
 		deinit_fonts();
 		init_fonts(win_width/term->cols, win_height/term->rows);
-		reinit_font_fallback(NULL);
 		offset_width = (win_width-font_width*term->cols)/2;
 		offset_height = (win_height-font_height*term->rows)/2;
                 InvalidateRect(wgs.term_hwnd, NULL, true);
@@ -3216,7 +3214,6 @@ static void reset_window(int reinit) {
 
 		    deinit_fonts();
 		    init_fonts(font_width, font_height);
-		    reinit_font_fallback(NULL);
 
 		    width = (ss.right - ss.left - extra_width) / font_width;
 		    height = (ss.bottom - ss.top - extra_height) / font_height;
@@ -3255,7 +3252,6 @@ static void reset_window(int reinit) {
 	deinit_fonts();
 	init_fonts((win_width-window_border*2)/term->cols,
 		   (win_height-window_border*2)/term->rows);
-	reinit_font_fallback(NULL);
 	offset_width = (win_width-font_width*term->cols)/2;
 	offset_height = (win_height-font_height*term->rows)/2;
 
