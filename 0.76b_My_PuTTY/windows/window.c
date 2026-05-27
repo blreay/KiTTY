@@ -276,6 +276,8 @@ extern int PuttyFlag ;
 int GetCursorType() { return cursor_type ; }
 void SetCursorType( const int ct ) { cursor_type = ct ; }
 extern char BuildVersionTime[256] ;
+extern char g_fb_fallback[];
+extern char g_fb_overrides[];
 void SendStrToTerminal( const char * str, const int len ) {
 	char c ;
 	int i ;
@@ -2788,8 +2790,31 @@ static void init_fonts(int pick_width, int pick_height)
 	    fontsize[i] = -i;
     }
 
-    /* font fallback init (stubs for now; populated in Task 10) */
-    winfb_init(hdc, &lfont, font_width, font_height, NULL, NULL, 0);
+    /* font fallback init: parse ini-loaded Fallback CSV and Override
+     * lines, then initialise the fallback module. */
+    {
+        const char *ovr_lines[64];
+        int n_ovr = 0;
+        char ovr_buf[4096];
+        size_t buf_len = strlen(g_fb_overrides);
+        if (buf_len >= sizeof(ovr_buf)) buf_len = sizeof(ovr_buf) - 1;
+        memcpy(ovr_buf, g_fb_overrides, buf_len);
+        ovr_buf[buf_len] = '\0';
+        /* tokenize by ';' into independent line pointers */
+        char *p = ovr_buf;
+        while (*p && n_ovr < 64) {
+            while (*p == ' ' || *p == '\t') p++;
+            if (!*p) break;
+            ovr_lines[n_ovr++] = p;
+            char *sep = strchr(p, ';');
+            if (!sep) break;
+            *sep = '\0';
+            p = sep + 1;
+        }
+        winfb_init(hdc, &lfont, font_width, font_height,
+                   g_fb_fallback[0] ? g_fb_fallback : NULL,
+                   n_ovr > 0 ? ovr_lines : NULL, n_ovr);
+    }
 
     ReleaseDC(wgs.term_hwnd, hdc);
 
