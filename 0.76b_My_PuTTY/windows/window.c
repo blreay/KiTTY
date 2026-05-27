@@ -269,6 +269,7 @@ extern HWND MainHwnd ;
 #include "../../kitty_ssh.h"
 #include "../../kitty_tools.h"
 #include "../../kitty_win.h"
+#include "winfont_fallback.h"
 NOTIFYICONDATA TrayIcone ;
 NOTIFYICONDATA trayIcone ;
 extern int PuttyFlag ;
@@ -2093,6 +2094,7 @@ void cleanup_exit(int code)
 	urlhack_cleanup();
 #endif
     deinit_fonts();
+    winfb_log_close();
     sfree(logpal);
     if (pal)
 	DeleteObject(pal);
@@ -2786,6 +2788,9 @@ static void init_fonts(int pick_width, int pick_height)
 	    fontsize[i] = -i;
     }
 
+    /* font fallback init (stubs for now; populated in Task 10) */
+    winfb_init(hdc, &lfont, font_width, font_height, NULL, NULL, 0);
+
     ReleaseDC(wgs.term_hwnd, hdc);
 
     if (trust_icon != INVALID_HANDLE_VALUE) {
@@ -2897,6 +2902,7 @@ static void deinit_fonts(void)
 	DestroyIcon(trust_icon);
     }
     trust_icon = INVALID_HANDLE_VALUE;
+    winfb_cleanup();
 }
 
 static void wintw_request_resize(TermWin *tw, int w, int h)
@@ -3014,6 +3020,7 @@ static void reset_window(int reinit) {
 #endif
 	deinit_fonts();
 	init_fonts(0,0);
+	winfb_reset();
     }
 
     /* Oh, looks like we're minimised */
@@ -3041,6 +3048,7 @@ static void reset_window(int reinit) {
 		font_height != win_height/term->rows) {
 		deinit_fonts();
 		init_fonts(win_width/term->cols, win_height/term->rows);
+		winfb_reset();
 		offset_width = (win_width-font_width*term->cols)/2;
 		offset_height = (win_height-font_height*term->rows)/2;
                 InvalidateRect(wgs.term_hwnd, NULL, true);
@@ -3161,6 +3169,7 @@ static void reset_window(int reinit) {
 
 		    deinit_fonts();
 		    init_fonts(font_width, font_height);
+		    winfb_reset();
 
 		    width = (ss.right - ss.left - extra_width) / font_width;
 		    height = (ss.bottom - ss.top - extra_height) / font_height;
@@ -3199,6 +3208,7 @@ static void reset_window(int reinit) {
 	deinit_fonts();
 	init_fonts((win_width-window_border*2)/term->cols, 
 		   (win_height-window_border*2)/term->rows);
+	winfb_reset();
 	offset_width = (win_width-font_width*term->cols)/2;
 	offset_height = (win_height-font_height*term->rows)/2;
 
