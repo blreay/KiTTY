@@ -1,0 +1,64 @@
+KiTTY font fallback test strings (Consolas as primary font)
+=============================================================
+
+[1] ASCII:         The quick brown fox jumps over the lazy dog 0123456789
+[2] Box Drawing:   ┌─┬─┐  ╔══╦══╗  ┃ ╋ ┻ ┳ ╳ ▔ ▁ ▏ ▕
+[3] Block:         █ ▓ ▒ ░ ▀ ▄ ▌ ▐
+[4] Geometric:     ● ○ ■ □ ▲ △ ▶ ▼ ◀ ◆ ◇ ★ ☆
+[5] Misc Symbols:  ☀ ☁ ☂ ☃ ☄ ⌘ ⌥ ⌃ ⏏ ⏵ ⏸ ⏹       (⏵ = U+23F5)
+[6] Dingbats:      ✓ ✗ ✘ ✿ ❄ ❤ ✈ ✂
+[7] Arrows:        ← ↑ → ↓ ↔ ↕ ⇐ ⇒ ⇔
+[8] CJK single-w:  「」『』、。
+[9] CJK double-w:  你好，世界！中文测试 漢字 ひらがな カタカナ 한글
+[10] Surrogate:    😀 😁 😂 🤔 🦊 🚀 (rendered in black & white)
+[11] Nerd Font:                   (Powerline) [paste real PUA chars if Nerd Font installed]
+                                  (Font Awesome)
+[12] Combining:    é = e + ́    ñ = n + ̃
+[13] Width edge:   ▶▶▶ABC│CJK 你好│End
+
+To exercise interactively:
+  type 'cat tests/font_fallback_test.txt' inside a KiTTY session
+  using Consolas as the primary font.
+
+Acceptance:
+  - All non-ASCII characters render glyphs (no .notdef boxes) when fallback fonts are installed.
+  - U+23F5 ⏵ displays from Segoe UI Symbol fallback.
+  - Cell alignment is preserved (no half-glyphs, no overlap).
+  - With Log=info in [FontFallback], fontfallback.log records the per-codepoint slot mappings.
+
+
+Known limitations (MVP, route A: GDI + GetGlyphIndicesW)
+========================================================
+
+1. Emoji renders monochrome. Color emoji (COLR/CBDT/sbix) requires
+   DirectWrite/Direct2D, which is a future second phase.
+
+2. Fallback glyph baseline may differ by 1-2 px from the primary font.
+   No vertical adjustment is applied; the glyph is allowed to ride at
+   its native ascent within the cell clip rectangle.
+
+3. FONT_HIGH / FONT_WIDE (LATTR_TOP/BOT, double-height/width lines)
+   variants are not created for fallback fonts. Characters that need
+   fallback in doubled lines fall back to the primary font.
+
+4. Multi-line overrides use a SINGLE Override= key with semicolon
+   separators, not multiple Override= lines. Example:
+   Override=E000-F8FF:Symbols Nerd Font Mono;1F600-1F64F:Segoe UI Emoji
+
+5. RTL text mixed with fallback characters loses the GCP shaping that
+   exact_textout would provide. Pure RTL text (no fallback needed)
+   still uses the original path and is unaffected.
+
+6. The BMP cache is a fixed 64 KB allocation. The SMP hash is capped
+   at 1024 entries; codepoints beyond that limit re-probe each frame.
+
+7. winfb_split caps at 64 runs per call. A pathological line that
+   alternates between primary and fallback every cell beyond 64 cells
+   will drop the tail. Realistic terminal lines do not hit this.
+
+8. The fallback module never participates in cursor / underline /
+   strikethrough / background-image painting decisions. Those continue
+   to follow the original do_text_internal logic.
+
+9. fontfallback.log defaults to OFF and lives next to the .exe.
+   Rollover is single-generation at ~10 MB (.log -> .log.1).
