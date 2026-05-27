@@ -151,6 +151,7 @@ static winfb_override g_ovr[WINFB_OVR_CAP];
 static int g_n_ovr;
 
 /* Suppress unused-static warnings for state that Tasks 6-10 will use. */
+static void winfb_state_touch_unused(void) __attribute__((unused));
 static void winfb_state_touch_unused(void)
 {
     (void)g_slots; (void)g_n_slots;

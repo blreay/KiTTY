@@ -422,7 +422,7 @@ putty.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		sshutils.o verstring.o zlib.o stripctrl.o supdup.o \
 		telnet.o terminal.o timing.o tree234.o utils.o version.o \
 		wcwidth.o wildcard.o cryptoapi.o wincfg.o controls.o defaults.o \
-		windlg.o window.o gss.o handle-io.o help.o handle-socket.o \
+		windlg.o window.o winfont_fallback.o gss.o handle-io.o help.o handle-socket.o \
 		jump-list.o network.o noise.o named-pipe-client.o \
 		named-pipe-server.o agent-client.o printing.o local-proxy.o security.o \
 		select-gui.o serial.o winshare.o storage.o wintime.o \
@@ -453,7 +453,7 @@ putty.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		sshutils.o verstring.o zlib.o stripctrl.o supdup.o \
 		telnet.o terminal.o timing.o tree234.o utils.o version.o \
 		wcwidth.o wildcard.o cryptoapi.o wincfg.o controls.o defaults.o \
-		windlg.o window.o gss.o handle-io.o help.o handle-socket.o \
+		windlg.o window.o winfont_fallback.o gss.o handle-io.o help.o handle-socket.o \
 		jump-list.o network.o noise.o named-pipe-client.o \
 		named-pipe-server.o agent-client.o printing.o local-proxy.o security.o \
 		select-gui.o serial.o winshare.o storage.o wintime.o \
@@ -1794,6 +1794,14 @@ window.o: ../windows/window.c ../putty.h ../terminal/terminal.h ../storage.h \
 	-DBUILD_SUBVERSION=`cat version_minor.txt` \
 	-DMASTER_PASSWORD=`cat ../../masterpassword.txt` \
 	-DMOD_INTEGRATED_AGENT -DMOD_INTEGRATED_KEYGEN
+
+winfont_fallback.o: ../windows/winfont_fallback.c ../windows/winfont_fallback.h \
+		../putty.h ../terminal/terminal.h ../storage.h \
+		../windows/platform.h ../unix/unix.h \
+		../defs.h ../puttyps.h ../network.h ../misc.h \
+		../marshal.h ../ssh/signal-list.h ../puttymem.h \
+		../windows/help.h ../charset/charset.h
+	$(CC) $(COMPAT) $(CFLAGS) $(XFLAGS) -c ../windows/winfont_fallback.c
 
 gss.o: ../windows/gss.c ../putty.h ../ssh/pgssapi.h ../ssh/gss.h \
 		../ssh/gssc.h ../misc.h ../defs.h ../puttyps.h ../network.h \
