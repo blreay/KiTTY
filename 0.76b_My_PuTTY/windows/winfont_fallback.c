@@ -130,6 +130,7 @@ typedef struct {
     bool  installed;                /* EnumFontFamiliesEx confirmed */
 } winfb_slot;
 
+static HFONT      g_probe_primary_hfont;
 static winfb_slot g_slots[WINFB_MAX_SLOTS];
 static int        g_n_slots;
 static LOGFONT    g_base_lf;
@@ -150,21 +151,271 @@ typedef struct { uint32_t lo, hi; int slot; } winfb_override;
 static winfb_override g_ovr[WINFB_OVR_CAP];
 static int g_n_ovr;
 
-/* Suppress unused-static warnings for state that Tasks 6-10 will use. */
-static void winfb_state_touch_unused(void) __attribute__((unused));
-static void winfb_state_touch_unused(void)
+/* ===================================================================
+ *  Built-in fallback font list
+ * =================================================================== */
+
+static const char *g_default_fallbacks[] = {
+    "Segoe UI Symbol",
+    "Segoe UI Emoji",
+    "Segoe UI Historic",
+    "Cascadia Mono",
+    "Cascadia Code",
+    "Microsoft YaHei UI",
+    "Microsoft JhengHei UI",
+    "Yu Gothic UI",
+    "Malgun Gothic",
+    NULL
+};
+
+/* ===================================================================
+ *  Font enumeration: check if a font face is installed
+ * =================================================================== */
+
+/* Copy a (possibly oversized) NUL-terminated face name into an
+ * LF_FACESIZE buffer, guaranteeing termination.  Using strncpy here
+ * triggers GCC's -Wstringop-truncation when src might be longer than
+ * the dest, so we use bounded memcpy + explicit NUL instead. */
+static void copy_face(char *dst, const char *src)
 {
-    (void)g_slots; (void)g_n_slots;
-    (void)g_base_lf; (void)g_cell_w; (void)g_cell_h;
-    (void)g_probe_dc; (void)g_initialised;
-    (void)g_bmp_map;
-    (void)g_smp; (void)g_n_smp;
-    (void)g_ovr; (void)g_n_ovr;
-    (void)winfb_state_touch_unused;
+    size_t n = strlen(src);
+    if (n > LF_FACESIZE - 1) n = LF_FACESIZE - 1;
+    memcpy(dst, src, n);
+    dst[n] = '\0';
+}
+
+typedef struct {
+    const char *target_name;
+    BOOL        found;
+} enum_cb_ctx;
+
+static int CALLBACK enum_font_cb(const LOGFONT *lf, const TEXTMETRIC *tm,
+                                 DWORD type, LPARAM lParam)
+{
+    (void)tm; (void)type;
+    enum_cb_ctx *ctx = (enum_cb_ctx *)lParam;
+    if (stricmp(ctx->target_name, lf->lfFaceName) == 0) {
+        ctx->found = TRUE;
+        return 0;  /* stop enumeration */
+    }
+    return 1;  /* continue */
+}
+
+static bool is_font_installed(HDC hdc, const char *name)
+{
+    enum_cb_ctx ctx;
+    ctx.target_name = name;
+    ctx.found = FALSE;
+    LOGFONT lf;
+    memset(&lf, 0, sizeof(lf));
+    lf.lfCharSet = DEFAULT_CHARSET;
+    copy_face(lf.lfFaceName, name);
+    EnumFontFamiliesExA(hdc, &lf, enum_font_cb, (LPARAM)&ctx, 0);
+    return ctx.found != FALSE;
 }
 
 /* ===================================================================
- *  Stub implementations (S1 — everything except logging is a no-op)
+ *  HFONT creation helpers
+ * =================================================================== */
+
+static int attr_index(bool bold, bool italic, bool underline)
+{
+    return (bold ? 4 : 0) | (italic ? 2 : 0) | (underline ? 1 : 0);
+}
+
+static HFONT create_variant(const LOGFONT *base, int cell_w, int cell_h,
+                             const char *face, bool bold, bool italic,
+                             bool underline)
+{
+    LOGFONT lf = *base;
+    copy_face(lf.lfFaceName, face);
+    lf.lfHeight = cell_h;
+    lf.lfWidth  = cell_w;
+    lf.lfWeight = bold ? FW_BOLD : FW_DONTCARE;
+    lf.lfItalic = italic ? TRUE : FALSE;
+    lf.lfUnderline = underline ? TRUE : FALSE;
+    lf.lfOutPrecision = OUT_DEFAULT_PRECIS;
+    lf.lfClipPrecision = CLIP_DEFAULT_PRECIS;
+    lf.lfQuality = base->lfQuality;
+    lf.lfPitchAndFamily = DEFAULT_PITCH | FF_DONTCARE;
+    return CreateFontIndirect(&lf);
+}
+
+/* ===================================================================
+ *  CSV / override parsers
+ * =================================================================== */
+
+/* Parse comma-separated font names. Writes into slot array.
+ * If csv starts with '!', replace built-in list; otherwise append. */
+static void parse_fallback_csv(const char *csv, bool *replace_builtins)
+{
+    if (!csv || !csv[0]) return;
+    const char *p = csv;
+    if (*p == '!') {
+        *replace_builtins = true;
+        p++;
+        while (*p == ' ') p++;
+    }
+    /* tokenize by comma */
+    char buf[LF_FACESIZE];
+    while (*p) {
+        while (*p == ' ' || *p == '\t') p++;
+        if (!*p) break;
+        int i = 0;
+        while (*p && *p != ',' && i < LF_FACESIZE - 1) {
+            buf[i++] = *p++;
+        }
+        buf[i] = '\0';
+        /* trim trailing space */
+        while (i > 0 && (buf[i-1] == ' ' || buf[i-1] == '\t')) buf[--i] = '\0';
+        if (buf[0] && g_n_slots < WINFB_MAX_SLOTS) {
+            copy_face(g_slots[g_n_slots].name, buf);
+            g_slots[g_n_slots].installed = false; /* checked later */
+            memset(g_slots[g_n_slots].hfont, 0, sizeof(HFONT) * WINFB_ATTR_DIM);
+            g_n_slots++;
+        }
+        if (*p == ',') p++;
+    }
+}
+
+/* Parse "XXXX-YYYY:FontName" or "XXXX:FontName" lines.
+ * XXXX and YYYY are hex Unicode codepoints. */
+static void parse_overrides(const char **lines, int n)
+{
+    int i;
+    for (i = 0; i < n && g_n_ovr < WINFB_OVR_CAP; i++) {
+        const char *s = lines[i];
+        if (!s) continue;
+        uint32_t lo = 0, hi = 0;
+        int consumed = 0;
+        if (sscanf(s, "%x-%x:%n", &lo, &hi, &consumed) == 2 && consumed > 0) {
+            /* range */
+        } else if (sscanf(s, "%x:%n", &lo, &consumed) == 1 && consumed > 0) {
+            hi = lo;
+        } else {
+            continue;
+        }
+        const char *fname = s + consumed;
+        while (*fname == ' ') fname++;
+        if (!*fname) continue;
+
+        /* find or create the slot for this font name */
+        int slot;
+        for (slot = 0; slot < g_n_slots; slot++) {
+            if (stricmp(g_slots[slot].name, fname) == 0) break;
+        }
+        if (slot == g_n_slots) {
+            if (g_n_slots >= WINFB_MAX_SLOTS) continue;
+            copy_face(g_slots[g_n_slots].name, fname);
+            memset(g_slots[g_n_slots].hfont, 0, sizeof(HFONT) * WINFB_ATTR_DIM);
+            g_slots[g_n_slots].installed = false;
+            slot = g_n_slots++;
+        }
+        g_ovr[g_n_ovr].lo   = lo;
+        g_ovr[g_n_ovr].hi   = hi;
+        g_ovr[g_n_ovr].slot = slot;
+        g_n_ovr++;
+        winfb_logf(WINFB_LOG_INFO, "override U+%04X-U+%04X -> slot %d \"%s\"",
+                   lo, hi, slot, g_slots[slot].name);
+    }
+}
+
+/* ===================================================================
+ *  Lookup: codepoint -> fallback slot
+ * =================================================================== */
+
+/* Look up which fallback slot (or primary) contains the glyph for cp.
+ * Returns: -1 = primary font (confirmed present or all-miss),
+ *           0..N-1 = fallback slot index.
+ * BMP codepoints use g_bmp_map; SMP uses g_smp hash.
+ * Marked __attribute__((unused)) — Task 7 (winfb_split) will be its caller. */
+static int winfb_lookup_slot(uint32_t cp) __attribute__((unused));
+static int winfb_lookup_slot(uint32_t cp)
+{
+    if (!g_initialised) return -1;
+
+    /* 1. override ranges (highest priority) */
+    for (int i = 0; i < g_n_ovr; i++) {
+        if (cp >= g_ovr[i].lo && cp <= g_ovr[i].hi)
+            return g_ovr[i].slot;
+    }
+
+    /* 2. BMP cache lookup */
+    if (cp < 0x10000) {
+        int8_t cached = g_bmp_map[cp];
+        if (cached != -2) return (int)cached;
+    } else {
+        for (int i = 0; i < g_n_smp; i++) {
+            if (g_smp[i].cp == cp) return (int)g_smp[i].slot;
+        }
+    }
+
+    /* 3. probe primary font (BMP only) */
+    if (cp < 0x10000 && g_probe_dc) {
+        /* Note: probe DC has primary HFONT selected at init time. */
+        wchar_t wc = (wchar_t)cp;
+        WORD gi = 0;
+        if (GetGlyphIndicesW(g_probe_dc, &wc, 1, &gi,
+                             GGI_MARK_NONEXISTING_GLYPHS) != GDI_ERROR
+            && gi != 0xFFFF) {
+            g_bmp_map[cp] = -1;
+            winfb_logf(WINFB_LOG_TRACE, "probe U+%04X -> primary", cp);
+            return -1;
+        }
+    }
+
+    /* 4. probe fallback slots */
+    for (int i = 0; i < g_n_slots; i++) {
+        HFONT hf = winfb_hfont(i, false, false, false);
+        if (!hf) continue;
+        HFONT old = SelectObject(g_probe_dc, hf);
+
+        wchar_t wc_buf[2];
+        int wc_len;
+        if (cp < 0x10000) {
+            wc_buf[0] = (wchar_t)cp;
+            wc_len = 1;
+        } else {
+            uint32_t v = cp - 0x10000;
+            wc_buf[0] = (wchar_t)(0xD800 + (v >> 10));
+            wc_buf[1] = (wchar_t)(0xDC00 + (v & 0x3FF));
+            wc_len = 2;
+        }
+        WORD gi[2] = { 0, 0 };
+        DWORD ret = GetGlyphIndicesW(g_probe_dc, wc_buf, wc_len, gi,
+                                     GGI_MARK_NONEXISTING_GLYPHS);
+        SelectObject(g_probe_dc, old);
+
+        bool ok = (ret != GDI_ERROR) && (gi[0] != 0xFFFF)
+                  && (wc_len == 1 || gi[1] != 0xFFFF);
+        if (ok) {
+            if (cp < 0x10000) {
+                g_bmp_map[cp] = (int8_t)i;
+            } else if (g_n_smp < WINFB_SMP_CAP) {
+                g_smp[g_n_smp].cp   = cp;
+                g_smp[g_n_smp].slot = (int8_t)i;
+                g_n_smp++;
+            }
+            winfb_logf(WINFB_LOG_INFO, "map U+%04X -> slot %d \"%s\"",
+                       cp, i, g_slots[i].name);
+            return i;
+        }
+    }
+
+    /* 5. all-miss: record as primary (will show .notdef but avoid re-probing) */
+    if (cp < 0x10000) {
+        g_bmp_map[cp] = -1;
+    } else if (g_n_smp < WINFB_SMP_CAP) {
+        g_smp[g_n_smp].cp   = cp;
+        g_smp[g_n_smp].slot = -1;
+        g_n_smp++;
+    }
+    winfb_logf(WINFB_LOG_TRACE, "probe U+%04X -> all-miss (primary .notdef)", cp);
+    return -1;
+}
+
+/* ===================================================================
+ *  Lifecycle: init, reset, cleanup
  * =================================================================== */
 
 void winfb_init(HDC hdc, const LOGFONT *primary,
@@ -172,22 +423,180 @@ void winfb_init(HDC hdc, const LOGFONT *primary,
                 const char *fallback_csv,
                 const char **override_lines, int n_override)
 {
-    (void)hdc; (void)primary;
-    (void)cell_w; (void)cell_h;
-    (void)fallback_csv;
-    (void)override_lines; (void)n_override;
-    winfb_logf(WINFB_LOG_INFO, "winfb_init: stub (S1)");
+    winfb_cleanup();  /* idempotent */
+
+    g_base_lf = *primary;
+    g_cell_w  = cell_w;
+    g_cell_h  = cell_h;
+    g_n_slots = 0;
+    g_n_smp   = 0;
+    g_n_ovr   = 0;
+    g_initialised = false;
+
+    /* create a compatible DC for glyph probing */
+    g_probe_dc = CreateCompatibleDC(hdc);
+    if (!g_probe_dc) {
+        winfb_logf(WINFB_LOG_ERROR, "winfb_init: CreateCompatibleDC failed");
+        return;
+    }
+
+    /* select primary font into probe DC.
+     * We retain the HFONT for the lifetime of the probe DC; it will be
+     * deleted by winfb_cleanup when the DC is destroyed. */
+    g_probe_primary_hfont = CreateFontIndirect(primary);
+    if (g_probe_primary_hfont) {
+        SelectObject(g_probe_dc, g_probe_primary_hfont);
+    } else {
+        winfb_logf(WINFB_LOG_ERROR, "winfb_init: CreateFontIndirect failed");
+    }
+
+    /* reset BMP cache to "not probed" */
+    memset(g_bmp_map, -2, sizeof(g_bmp_map));  /* -2 == 0xFE as int8 */
+
+    /* parse user fallback list */
+    bool replace_builtins = false;
+    parse_fallback_csv(fallback_csv, &replace_builtins);
+
+    /* if not replacing, prepend built-in defaults */
+    if (!replace_builtins) {
+        int builtin_count = 0;
+        while (g_default_fallbacks[builtin_count]) builtin_count++;
+        if (g_n_slots + builtin_count <= WINFB_MAX_SLOTS) {
+            memmove(g_slots + builtin_count, g_slots,
+                    g_n_slots * sizeof(winfb_slot));
+            g_n_slots += builtin_count;
+            for (int i = 0; i < builtin_count; i++) {
+                copy_face(g_slots[i].name, g_default_fallbacks[i]);
+                memset(g_slots[i].hfont, 0, sizeof(HFONT) * WINFB_ATTR_DIM);
+                g_slots[i].installed = false;
+            }
+        }
+    }
+
+    /* parse overrides BEFORE the install check, so override-added slots
+     * get the same installed-check + compact treatment. */
+    if (override_lines && n_override > 0)
+        parse_overrides(override_lines, n_override);
+
+    /* verify which fallback fonts are actually installed */
+    for (int i = 0; i < g_n_slots; i++) {
+        g_slots[i].installed = is_font_installed(hdc, g_slots[i].name);
+        if (g_slots[i].installed) {
+            winfb_logf(WINFB_LOG_INFO, "fallback slot %d: \"%s\" (installed)",
+                       i, g_slots[i].name);
+        } else {
+            winfb_logf(WINFB_LOG_WARN,
+                       "fallback slot %d: \"%s\" NOT installed, skipping",
+                       i, g_slots[i].name);
+        }
+    }
+
+    /* compact: remove uninstalled fonts, adjust override slot indices */
+    int dst = 0;
+    int remap[WINFB_MAX_SLOTS];
+    for (int i = 0; i < g_n_slots; i++) {
+        remap[i] = -1;
+        if (g_slots[i].installed) {
+            if (dst != i) g_slots[dst] = g_slots[i];
+            remap[i] = dst;
+            dst++;
+        }
+    }
+    g_n_slots = dst;
+    for (int i = 0; i < g_n_ovr; i++) {
+        g_ovr[i].slot = (g_ovr[i].slot >= 0 && g_ovr[i].slot < WINFB_MAX_SLOTS)
+                        ? remap[g_ovr[i].slot] : -1;
+        if (g_ovr[i].slot < 0) {
+            /* override pointed to uninstalled font, drop it */
+            g_ovr[i] = g_ovr[g_n_ovr - 1];
+            g_n_ovr--;
+            i--;
+        }
+    }
+
+    winfb_logf(WINFB_LOG_INFO,
+               "winfb_init: primary=\"%s\" cell=%dx%d fallback_slots=%d overrides=%d",
+               primary->lfFaceName, cell_w, cell_h, g_n_slots, g_n_ovr);
+
+    g_initialised = true;
 }
 
 void winfb_reset(void)
 {
-    winfb_logf(WINFB_LOG_INFO, "winfb_reset: stub (S1)");
+    if (!g_initialised) return;
+    winfb_logf(WINFB_LOG_INFO, "winfb_reset: clearing caches");
+
+    /* clear glyph cache */
+    memset(g_bmp_map, -2, sizeof(g_bmp_map));
+    g_n_smp = 0;
+
+    /* delete fallback HFONTs (they'll be recreated lazily) */
+    for (int i = 0; i < g_n_slots; i++) {
+        for (int j = 0; j < WINFB_ATTR_DIM; j++) {
+            if (g_slots[i].hfont[j]) {
+                DeleteObject(g_slots[i].hfont[j]);
+                g_slots[i].hfont[j] = NULL;
+            }
+        }
+    }
 }
 
 void winfb_cleanup(void)
 {
-    winfb_logf(WINFB_LOG_INFO, "winfb_cleanup: stub (S1)");
+    /* free fallback HFONTs and clear caches */
+    if (g_initialised) {
+        for (int i = 0; i < g_n_slots; i++) {
+            for (int j = 0; j < WINFB_ATTR_DIM; j++) {
+                if (g_slots[i].hfont[j]) {
+                    DeleteObject(g_slots[i].hfont[j]);
+                    g_slots[i].hfont[j] = NULL;
+                }
+            }
+        }
+        memset(g_bmp_map, -2, sizeof(g_bmp_map));
+        g_n_smp = 0;
+    }
+
+    /* tear down probe DC first (auto-deselects its font), then delete the
+     * primary HFONT we retained for the DC's lifetime. */
+    if (g_probe_dc) {
+        SelectObject(g_probe_dc, GetStockObject(SYSTEM_FONT));
+        DeleteDC(g_probe_dc);
+        g_probe_dc = NULL;
+    }
+    if (g_probe_primary_hfont) {
+        DeleteObject(g_probe_primary_hfont);
+        g_probe_primary_hfont = NULL;
+    }
+
+    g_n_slots = 0;
+    g_n_smp   = 0;
+    g_n_ovr   = 0;
+    g_initialised = false;
+
+    winfb_logf(WINFB_LOG_INFO, "winfb_cleanup: released all resources");
 }
+
+/* ===================================================================
+ *  HFONT accessor (lazy creation)
+ * =================================================================== */
+
+HFONT winfb_hfont(int slot, bool bold, bool italic, bool underline)
+{
+    if (slot < 0 || slot >= g_n_slots) return NULL;
+
+    int idx = attr_index(bold, italic, underline);
+    if (!g_slots[slot].hfont[idx]) {
+        g_slots[slot].hfont[idx] = create_variant(
+            &g_base_lf, g_cell_w, g_cell_h,
+            g_slots[slot].name, bold, italic, underline);
+    }
+    return g_slots[slot].hfont[idx];
+}
+
+/* ===================================================================
+ *  Stubs remaining for Task 7 (split + draw_runs)
+ * =================================================================== */
 
 int winfb_split(const wchar_t *wbuf, int len,
                 WinFB_Run *out, int max_runs)
@@ -212,10 +621,4 @@ void winfb_draw_runs(HDC hdc, int x, int y, const RECT *line_box,
     (void)runs; (void)nruns; (void)opaque;
     (void)nfont_primary;
     (void)bold; (void)italic; (void)underline;
-}
-
-HFONT winfb_hfont(int slot, bool bold, bool italic, bool underline)
-{
-    (void)slot; (void)bold; (void)italic; (void)underline;
-    return NULL;
 }
