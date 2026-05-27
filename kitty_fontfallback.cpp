@@ -35,6 +35,7 @@ typedef struct {
     wchar_t user_fonts[8][LF_FACESIZE];
     int     user_font_count;
     int      primary_cell_px; /* measured cell width of primary font, px */
+    int      primary_ascent;  /* tmAscent of primary font, for y_adjust */
 
     KffCacheEntry cache[KFF_CACHE_BUCKETS];
     KffFontNode  *font_pool;
@@ -472,6 +473,7 @@ void kff_init(HFONT primary_hfont, const LOGFONT *primary_lf, int quality)
             SelectObject(hdc, old);
             ReleaseDC(NULL, hdc);
             g_kff.primary_cell_px = tm.tmAveCharWidth;
+            g_kff.primary_ascent  = tm.tmAscent;
         }
     }
     kff_log("[kff_init] primary_cell_px=%d", g_kff.primary_cell_px);
@@ -590,9 +592,22 @@ KffResult kff_lookup(unsigned int codepoint)
         }
     }
 
+    if (result.hfont) {
+        /* Compute baseline offset so fallback glyph aligns with primary font */
+        HDC hdc = GetDC(NULL);
+        if (hdc) {
+            HGDIOBJ old = SelectObject(hdc, result.hfont);
+            TEXTMETRICW tm;
+            GetTextMetricsW(hdc, &tm);
+            SelectObject(hdc, old);
+            ReleaseDC(NULL, hdc);
+            result.y_adjust = g_kff.primary_ascent - (int)tm.tmAscent;
+        }
+    }
+
     if (g_kff_log_miss <= KFF_LOG_MISS_MAX)
-        kff_log("[kff_lookup] cp=0x%04X result: hfont=%p glyph_px=%d",
-                codepoint, (void*)result.hfont, result.glyph_px);
+        kff_log("[kff_lookup] cp=0x%04X result: hfont=%p glyph_px=%d y_adjust=%d",
+                codepoint, (void*)result.hfont, result.glyph_px, result.y_adjust);
 
     cache_set(codepoint, result);
     return result;

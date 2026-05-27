@@ -6770,13 +6770,13 @@ static void do_text_internal(
                         seg_box.right = seg_x + seg_w;
 
                         SelectObject(wintw_hdc, seg_font);
-                        ExtTextOutW(wintw_hdc, seg_x + fb_xoff, draw_y,
+                        ExtTextOutW(wintw_hdc, seg_x + fb_xoff, draw_y + fb.y_adjust,
                                     ETO_CLIPPED | (seg_opaque ? ETO_OPAQUE : 0),
                                     &seg_box, wbuf + i2, j - i2, lpDx + i2);
 
                         if (bold_font_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
                             SetBkMode(wintw_hdc, TRANSPARENT);
-                            ExtTextOutW(wintw_hdc, seg_x + fb_xoff - 1, draw_y,
+                            ExtTextOutW(wintw_hdc, seg_x + fb_xoff - 1, draw_y + fb.y_adjust,
                                         ETO_CLIPPED, &seg_box,
                                         wbuf + i2, j - i2, lpDx + i2);
                         }

@@ -10,6 +10,7 @@ extern "C" {
 typedef struct {
     HFONT hfont;    /* NULL = use primary font */
     int   glyph_px; /* actual glyph pixel width; 0 = unknown */
+    int   y_adjust; /* pixels to add to draw_y: primary_ascent - fallback_ascent */
 } KffResult;
 
 /* Call at end of init_fonts(), after fonts[FONT_NORMAL] is ready. */
