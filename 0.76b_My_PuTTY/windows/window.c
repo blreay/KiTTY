@@ -6700,16 +6700,27 @@ static void do_text_internal(
                      * Use winfb_draw_runs which selects per-run HFONT
                      * and respects the cell-clip rectangle. */
                     int y_adj = y - font_height * (lattr == LATTR_BOT) + text_adjust;
+                    bool fb_opaque;
 #if (defined MOD_BACKGROUNDIMAGE) && (!defined FLJ)
-                    HDC draw_dc = (GetBackgroundImageFlag() && (!PuttyFlag))
-                                  ? hdc : wintw_hdc;
+                    HDC draw_dc;
+                    if (GetBackgroundImageFlag() && (!PuttyFlag)) {
+                        draw_dc = hdc;
+                        /* mirror exact_textout's opaque arg in the
+                         * background-image path: ignore caller `opaque`,
+                         * derive from transBg instead */
+                        fb_opaque = !(attr & TATTR_COMBINING) && !transBg;
+                    } else {
+                        draw_dc = wintw_hdc;
+                        fb_opaque = opaque && !(attr & TATTR_COMBINING);
+                    }
 #else
                     HDC draw_dc = wintw_hdc;
+                    fb_opaque = opaque && !(attr & TATTR_COMBINING);
 #endif
                     winfb_draw_runs(draw_dc, x + xoffset, y_adj,
                                     &line_box, wbuf, len, lpDx,
                                     fb_runs, fb_nruns,
-                                    opaque && !(attr & TATTR_COMBINING),
+                                    fb_opaque,
                                     nfont,
                                     (nfont & FONT_BOLD) != 0,
 #ifdef FONT_ITALIC
