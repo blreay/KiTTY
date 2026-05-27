@@ -134,8 +134,20 @@ public:
 
     ULONG   STDMETHODCALLTYPE AddRef()  override { return 1; }
     ULONG   STDMETHODCALLTYPE Release() override { return 1; }
-    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID, void **ppv) override {
-        *ppv = nullptr; return E_NOINTERFACE;
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void **ppv) override {
+        if (!ppv) return E_POINTER;
+        /* IUnknown {00000000-0000-0000-C000-000000000046} */
+        static const GUID iid_unk =
+            {0x00000000,0x0000,0x0000,{0xC0,0x00,0x00,0x00,0x00,0x00,0x00,0x46}};
+        /* IDWriteTextAnalysisSource {688E1A58-5094-47C8-ADC8-FBCEA60AE92B} */
+        static const GUID iid_tas =
+            {0x688e1a58,0x5094,0x47c8,{0xad,0xc8,0xfb,0xce,0xa6,0x0a,0xe9,0x2b}};
+        if (IsEqualGUID(riid, iid_unk) || IsEqualGUID(riid, iid_tas)) {
+            *ppv = static_cast<IDWriteTextAnalysisSource *>(this);
+            return S_OK;
+        }
+        *ppv = nullptr;
+        return E_NOINTERFACE;
     }
     HRESULT STDMETHODCALLTYPE GetTextAtPosition(
         UINT32 pos, const wchar_t **text, UINT32 *len) override {
@@ -362,12 +374,21 @@ static HFONT find_dwrite_fallback(unsigned int cp, int *out_glyph_px)
     IDWriteFont  *mapped_font = NULL;
     FLOAT         scale       = 1.0f;
 
+    /* Clamp weight: GDI FW_DONTCARE=0 is invalid for DWrite (valid range 1-999) */
+    LONG raw_weight = g_kff.primary_lfw.lfWeight;
+    DWRITE_FONT_WEIGHT dw_weight = (raw_weight >= 100 && raw_weight <= 999)
+        ? (DWRITE_FONT_WEIGHT)raw_weight
+        : DWRITE_FONT_WEIGHT_NORMAL;
+
+    kff_log("[find_dwrite_fallback] cp=0x%04X calling MapCharacters lfWeight=%ld dw_weight=%d",
+            cp, raw_weight, (int)dw_weight);
+
     HRESULT hr = g_kff.dw_fallback->MapCharacters(
         &source,
         0, wlen,
         NULL,                                /* use system font collection */
         g_kff.primary_lfw.lfFaceName,
-        (DWRITE_FONT_WEIGHT)g_kff.primary_lfw.lfWeight,
+        dw_weight,
         g_kff.primary_lfw.lfItalic ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL,
         DWRITE_FONT_STRETCH_NORMAL,
         &mapped_len,
@@ -554,9 +575,15 @@ KffResult kff_lookup(unsigned int codepoint)
             result.glyph_px = measure_glyph_px(hf, codepoint);
         }
     } else {
-        /* 3b. Non-PUA (Box Drawing, Geometric Shapes, etc.): DWrite system fallback */
+        /* 3b. Non-PUA: DWrite system fallback first, then font list if DWrite fails */
         int px = 0;
         HFONT hf = find_dwrite_fallback(codepoint, &px);
+        if (!hf) {
+            /* DWrite unavailable or failed — try curated font list */
+            hf = find_pua_font(codepoint);
+            if (hf)
+                px = measure_glyph_px(hf, codepoint);
+        }
         if (hf) {
             result.hfont    = hf;
             result.glyph_px = px;
