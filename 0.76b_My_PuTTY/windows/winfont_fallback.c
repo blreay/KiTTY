@@ -444,11 +444,14 @@ void winfb_init(HDC hdc, const LOGFONT *primary,
      * We retain the HFONT for the lifetime of the probe DC; it will be
      * deleted by winfb_cleanup when the DC is destroyed. */
     g_probe_primary_hfont = CreateFontIndirect(primary);
-    if (g_probe_primary_hfont) {
-        SelectObject(g_probe_dc, g_probe_primary_hfont);
-    } else {
-        winfb_logf(WINFB_LOG_ERROR, "winfb_init: CreateFontIndirect failed");
+    if (!g_probe_primary_hfont) {
+        winfb_logf(WINFB_LOG_ERROR,
+                   "winfb_init: CreateFontIndirect failed for primary font; aborting init");
+        DeleteDC(g_probe_dc);
+        g_probe_dc = NULL;
+        return;
     }
+    SelectObject(g_probe_dc, g_probe_primary_hfont);
 
     /* reset BMP cache to "not probed" */
     memset(g_bmp_map, -2, sizeof(g_bmp_map));  /* -2 == 0xFE as int8 */

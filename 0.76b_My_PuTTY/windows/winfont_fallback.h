@@ -83,8 +83,10 @@ void winfb_draw_runs(HDC hdc, int x, int y, const RECT *line_box,
 /* ---- font handle access ---- */
 
 /*
- * Return the HFONT for a given slot + attribute combination.
- * slot == -1 returns the primary font variant.
+ * Return the HFONT for a given fallback slot + attribute combination.
+ * Returns NULL for slot < 0; in that case the caller should select
+ * the primary font HFONT itself (winfb_draw_runs does this via the
+ * nfont_primary parameter).
  * HFONTs are lazily created on first access.
  */
 HFONT winfb_hfont(int slot, bool bold, bool italic, bool underline);
