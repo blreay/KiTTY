@@ -339,3 +339,36 @@ maxchar=85
 
 ; reload: enable session list reload on each menu respawn
 reload=yes
+
+
+[FontFallback]
+
+; Control font fallback behavior when the primary terminal font lacks a
+; glyph (Box Drawing, Geometric Shapes, Nerd Font PUA, CJK, etc.).
+; When the primary font is missing a character, KiTTY probes a list of
+; fallback fonts and draws the glyph from the first one that has it.
+
+; Log: off|error|warn|info|debug|trace
+; Default: off. When enabled, log file is created beside kitty.exe as
+; fontfallback.log. Use debug/trace only for troubleshooting (high volume).
+;Log=off
+
+; LogFile: absolute or relative path for the log file (optional).
+; Default: fontfallback.log next to the KiTTY executable.
+;LogFile=
+
+; Fallback: comma-separated list of font names to try when the primary
+; font lacks a character. These are appended AFTER the built-in defaults.
+; If the list starts with ! the built-in defaults are replaced entirely.
+; Built-in defaults: Segoe UI Symbol, Segoe UI Emoji, Segoe UI Historic,
+;   Cascadia Mono, Cascadia Code, Microsoft YaHei UI,
+;   Microsoft JhengHei UI, Yu Gothic UI, Malgun Gothic
+;Fallback=
+;Fallback=Symbols Nerd Font Mono,JetBrains Mono
+;Fallback=!MyOnlyFont1,MyOnlyFont2
+
+; Override: force a Unicode range (or single codepoint) to a specific
+; font, regardless of probe results. Multiple ranges are separated by
+; semicolons. Format: hex-start-hex-end:FontName  or  hex-point:FontName
+;Override=
+;Override=E000-F8FF:Symbols Nerd Font Mono;1F600-1F64F:Segoe UI Emoji
