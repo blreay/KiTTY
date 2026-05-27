@@ -327,9 +327,7 @@ static void parse_overrides(const char **lines, int n)
 /* Look up which fallback slot (or primary) contains the glyph for cp.
  * Returns: -1 = primary font (confirmed present or all-miss),
  *           0..N-1 = fallback slot index.
- * BMP codepoints use g_bmp_map; SMP uses g_smp hash.
- * Marked __attribute__((unused)) — Task 7 (winfb_split) will be its caller. */
-static int winfb_lookup_slot(uint32_t cp) __attribute__((unused));
+ * BMP codepoints use g_bmp_map; SMP uses g_smp hash. */
 static int winfb_lookup_slot(uint32_t cp)
 {
     if (!g_initialised) return -1;
@@ -598,19 +596,61 @@ HFONT winfb_hfont(int slot, bool bold, bool italic, bool underline)
 }
 
 /* ===================================================================
- *  Stubs remaining for Task 7 (split + draw_runs)
+ *  Splitter: wbuf -> runs grouped by fallback slot
  * =================================================================== */
 
 int winfb_split(const wchar_t *wbuf, int len,
                 WinFB_Run *out, int max_runs)
 {
-    (void)wbuf;
     if (len <= 0 || max_runs <= 0) return 0;
-    out[0].start = 0;
-    out[0].len   = len;
-    out[0].slot  = -1;
-    return 1;
+    if (!g_initialised || g_n_slots == 0) {
+        out[0].start = 0;
+        out[0].len   = len;
+        out[0].slot  = -1;
+        return 1;
+    }
+
+    int nruns = 0;
+    int i = 0;
+
+    while (i < len) {
+        /* decode codepoint (handle surrogate pairs) */
+        uint32_t cp;
+        int advance;
+        if (i + 1 < len
+            && wbuf[i]   >= 0xD800 && wbuf[i]   <= 0xDBFF
+            && wbuf[i+1] >= 0xDC00 && wbuf[i+1] <= 0xDFFF) {
+            cp = 0x10000
+                 + ((uint32_t)(wbuf[i]   - 0xD800) << 10)
+                 +  (uint32_t)(wbuf[i+1] - 0xDC00);
+            advance = 2;
+        } else {
+            cp = (uint32_t)wbuf[i];
+            advance = 1;
+        }
+
+        int slot = winfb_lookup_slot(cp);
+
+        /* extend current run if slot matches, else start a new run */
+        if (nruns > 0 && out[nruns-1].slot == slot) {
+            out[nruns-1].len += advance;
+        } else {
+            if (nruns >= max_runs) break;
+            out[nruns].start = i;
+            out[nruns].len   = advance;
+            out[nruns].slot  = slot;
+            nruns++;
+        }
+        i += advance;
+    }
+
+    winfb_logf(WINFB_LOG_DEBUG, "split len=%d runs=%d", len, nruns);
+    return nruns;
 }
+
+/* ===================================================================
+ *  Run drawer: paint each run with its chosen HFONT
+ * =================================================================== */
 
 void winfb_draw_runs(HDC hdc, int x, int y, const RECT *line_box,
                      const wchar_t *wbuf, int len, const int *lpDx,
@@ -619,9 +659,49 @@ void winfb_draw_runs(HDC hdc, int x, int y, const RECT *line_box,
                      int nfont_primary,
                      bool bold, bool italic, bool underline)
 {
-    (void)hdc; (void)x; (void)y; (void)line_box;
-    (void)wbuf; (void)len; (void)lpDx;
-    (void)runs; (void)nruns; (void)opaque;
+    (void)len;
     (void)nfont_primary;
-    (void)bold; (void)italic; (void)underline;
+
+    int orig_bkmode = GetBkMode(hdc);
+    HFONT primary_hf = (HFONT)GetCurrentObject(hdc, OBJ_FONT);
+
+    int x_cursor = x;
+
+    for (int r = 0; r < nruns; r++) {
+        const WinFB_Run *run = &runs[r];
+
+        if (run->slot >= 0) {
+            HFONT hf = winfb_hfont(run->slot, bold, italic, underline);
+            if (hf) SelectObject(hdc, hf);
+            /* If hf is NULL (e.g. HFONT creation failed) we fall back to
+             * the primary font — better than skipping the glyphs. */
+        }
+
+        UINT eto_flags = ETO_CLIPPED;
+        if (opaque && r == 0) eto_flags |= ETO_OPAQUE;
+
+        ExtTextOutW(hdc, x_cursor, y, eto_flags, line_box,
+                    wbuf + run->start, run->len,
+                    lpDx ? lpDx + run->start : NULL);
+
+        /* restore primary font after a non-primary run */
+        if (run->slot >= 0) {
+            SelectObject(hdc, primary_hf);
+        }
+
+        /* advance cursor by the sum of cell widths in this run.
+         * If lpDx is NULL the caller is drawing one char at a time
+         * (font_varpitch path) and we leave x_cursor alone. */
+        if (lpDx) {
+            for (int k = 0; k < run->len; k++) {
+                x_cursor += lpDx[run->start + k];
+            }
+        }
+
+        /* after the first run, don't re-erase the background */
+        if (r == 0) SetBkMode(hdc, TRANSPARENT);
+    }
+
+    /* restore bkmode for the caller */
+    SetBkMode(hdc, orig_bkmode);
 }
