@@ -375,6 +375,15 @@ extern int PrintMaxCharPerLine ;
 
 extern char puttystr[1024] ;
 
+/* winfont_fallback prototypes — full header included from window.c */
+extern void winfb_log_init(int level, const char *path);
+extern void winfb_log_close(void);
+
+/* Globals used by window.c to drive winfont_fallback; populated from
+ * the [FontFallback] section of kitty.ini by init_fontfallback(). */
+char g_fb_fallback[4096] = "";
+char g_fb_overrides[4096] = "";
+
 #ifdef MOD_PROXY
 #include "kitty_proxy.h"
 #endif
@@ -5554,6 +5563,47 @@ void WriteCountUpAndPath( void ) {
 void appendPath(const char *append) ;
 extern char sesspath[];
 int loadPath() ;
+
+/* Read [FontFallback] settings from kitty.ini and initialise the
+ * winfont_fallback logger. Called once at startup, after the ini file
+ * path is known. */
+static void init_fontfallback(void)
+{
+    char buf[4096];
+    int level = 0;  /* WINFB_LOG_OFF */
+
+    if( ReadParameter("FontFallback", "Log", buf) ) {
+        if      (!stricmp(buf, "off"))   level = 0;
+        else if (!stricmp(buf, "error")) level = 1;
+        else if (!stricmp(buf, "warn"))  level = 2;
+        else if (!stricmp(buf, "info"))  level = 3;
+        else if (!stricmp(buf, "debug")) level = 4;
+        else if (!stricmp(buf, "trace")) level = 5;
+    }
+
+    char logpath[MAX_PATH];
+    logpath[0] = '\0';
+    if( ReadParameter("FontFallback", "LogFile", buf) ) {
+        strncpy(logpath, buf, MAX_PATH - 1);
+        logpath[MAX_PATH - 1] = '\0';
+    }
+
+    winfb_log_init(level, logpath[0] ? logpath : NULL);
+
+    /* Cache Fallback and Override CSVs for window.c to consume later. */
+    g_fb_fallback[0] = '\0';
+    if( ReadParameter("FontFallback", "Fallback", buf) ) {
+        strncpy(g_fb_fallback, buf, sizeof(g_fb_fallback) - 1);
+        g_fb_fallback[sizeof(g_fb_fallback) - 1] = '\0';
+    }
+
+    g_fb_overrides[0] = '\0';
+    if( ReadParameter("FontFallback", "Override", buf) ) {
+        strncpy(g_fb_overrides, buf, sizeof(g_fb_overrides) - 1);
+        g_fb_overrides[sizeof(g_fb_overrides) - 1] = '\0';
+    }
+}
+
 void InitWinMain( void ) {
 	char buffer[4096];
 	int i ;
@@ -5605,6 +5655,9 @@ void InitWinMain( void ) {
 
 	// Initialisation des parametres à partir du fichier kitty.ini
 	LoadParameters() ;
+
+	// Initialise le sous-systeme de log de font fallback
+	init_fontfallback() ;
 
 	// Ajoute les répertoires InitialDirectory et ConfigDirectory au PATH
 
