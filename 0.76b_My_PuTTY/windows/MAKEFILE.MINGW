@@ -2375,11 +2375,12 @@ putty_portable.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o 
 		kitty_store.o kitty_tools.o kitty_win.o \
 		urlhack.o pageant_integrated.o winpageant_integrated.o winputtygen_integrated.o winpzmodem.o \
 		import.o rsag.o cryptodsa.o prime.o ecdsa.o bcrypt.o pockle.o primecandidate.o millerrabin.o mpunsafe.o \
+		kitty_fontfallback.o \
 		void.o $(UTF8MOUSE_OBJS) \
 		../../base64/base64.a ../../bcrypt/bcrypt.a ../../blocnote/notepad.a ../../jpeg/libjpeg.a \
 		../../md5/MD5check.a ../../mini/mini.a ../../regex/libregex.a \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lpsapi -lole32 -lshell32 \
-		-luser32 -lwsock32  -lwtsapi32
+		-luser32 -lwsock32  -lwtsapi32 -ldwrite -lstdc++
 		# -lcomctl32 -lwinmm -lwinspool -lole32 -lcrypt32
 
 kitty_fontfallback.o: ../../kitty_fontfallback.cpp ../../kitty_fontfallback.h
@@ -2393,8 +2394,14 @@ clean:
 cross:
 	sed -i 's#^typedef enum _WTS_VIRTUAL_CLASS #// typedef enum _WTS_VIRTUAL_CLASS #' window.c
 	sed -i 's/0/999/' version_major.txt
-	make -e TOOLPATH=/usr/bin/i686-w64-mingw32- -f MAKEFILE.MINGW putty.exe plink.exe pscp.exe psftp.exe pageant.exe puttygen.exe
-	make -e TOOLPATH=/usr/bin/i686-w64-mingw32- -f MAKEFILE.MINGW portable
+	cp ../../base64/base64_32.a ../../base64/base64.a
+	cp ../../bcrypt/bcrypt_32.a ../../bcrypt/bcrypt.a
+	cp ../../blocnote/notepad_32.a ../../blocnote/notepad.a
+	cp ../../jpeg/libjpeg_32.a ../../jpeg/libjpeg.a
+	cp ../../mini/mini_32.a ../../mini/mini.a
+	cp ../../regex/libregex_32.a ../../regex/libregex.a
+	make -e TOOLPATH=/usr/bin/i686-w64-mingw32- -e "XFLAGS=$(XFLAGS) -I./mingw32-fix" -f MAKEFILE.MINGW putty.exe plink.exe pscp.exe psftp.exe pageant.exe puttygen.exe
+	make -e TOOLPATH=/usr/bin/i686-w64-mingw32- -e "XFLAGS=$(XFLAGS) -I./mingw32-fix" -f MAKEFILE.MINGW portable
 	cp putty.exe putty_nocompress.exe
 	upx --best --compress-icons=2 --compress-exports=0 putty.exe putty_portable.exe
 	mv putty.exe /builds/kitty.exe
