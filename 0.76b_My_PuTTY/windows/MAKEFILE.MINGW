@@ -509,7 +509,7 @@ puttytel.exe: be_misc.o be_nos_s.o callback.o cmdline.o conf.o config.o \
 		pinger.o proxy.o puttytel.res.o raw.o rlogin.o sessprep.o \
 		settings.o sizetip.o stripctrl.o supdup.o telnet.o \
 		terminal.o timing.o tree234.o utils.o version.o wcwidth.o \
-		wincfg.o controls.o defaults.o windlg.o window.o handle-io.o \
+		wincfg.o controls.o defaults.o windlg.o window.o winfont_fallback.o handle-io.o \
 		help.o handle-socket.o jump-list.o network.o \
 		printing.o local-proxy.o security.o select-gui.o serial.o \
 		storage.o wintime.o unicode.o request_file.o message_box.o pgp_fingerprints_msgbox.o makedlgitemborderless.o getdlgitemtext_alloc.o split_into_argv.o
@@ -520,7 +520,7 @@ puttytel.exe: be_misc.o be_nos_s.o callback.o cmdline.o conf.o config.o \
 		proxy.o puttytel.res.o raw.o rlogin.o sessprep.o settings.o \
 		sizetip.o stripctrl.o supdup.o telnet.o terminal.o timing.o \
 		tree234.o utils.o version.o wcwidth.o wincfg.o controls.o \
-		defaults.o windlg.o window.o handle-io.o help.o handle-socket.o \
+		defaults.o windlg.o window.o winfont_fallback.o handle-io.o help.o handle-socket.o \
 		jump-list.o network.o printing.o \
 		local-proxy.o security.o select-gui.o serial.o storage.o \
 		wintime.o unicode.o request_file.o message_box.o pgp_fingerprints_msgbox.o makedlgitemborderless.o getdlgitemtext_alloc.o split_into_argv.o \
@@ -2268,7 +2268,7 @@ putty_notrans.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		verstring.o zlib.o stripctrl.o telnet.o terminal.o \
 		timing.o tree234.o utils.o version.o wcwidth.o wildcard.o \
 		cryptoapi.o wincfg.o controls.o defaults.o windlg.o \
-		window_notrans.o \
+		window_notrans.o winfont_fallback.o \
 		gss.o handle-io.o help.o handle-socket.o jump-list.o \
 		network.o noise.o named-pipe-client.o named-pipe-server.o agent-client.o \
 		printing.o local-proxy.o security.o serial.o winshare.o \
@@ -2295,7 +2295,7 @@ putty_notrans.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		verstring.o zlib.o stripctrl.o telnet.o terminal.o \
 		timing.o tree234.o utils.o version.o wcwidth.o wildcard.o \
 		cryptoapi.o wincfg.o controls.o defaults.o windlg.o \
-		window_notrans.o \
+		window_notrans.o winfont_fallback.o \
 		gss.o handle-io.o help.o handle-socket.o jump-list.o \
 		network.o noise.o named-pipe-client.o named-pipe-server.o agent-client.o \
 		printing.o local-proxy.o security.o serial.o winshare.o \
@@ -2328,7 +2328,7 @@ putty_portable.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o 
 		telnet.o terminal.o timing.o tree234.o utils.o version.o \
 		wcwidth.o wildcard.o cryptoapi.o wincfg.o controls.o defaults.o \
 		windlg.o \
-		window_portable.o \
+		window_portable.o winfont_fallback.o \
 		gss.o handle-io.o help.o handle-socket.o \
 		jump-list.o network.o noise.o named-pipe-client.o \
 		named-pipe-server.o agent-client.o printing.o local-proxy.o security.o \
@@ -2361,7 +2361,7 @@ putty_portable.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o 
 		telnet.o terminal.o timing.o tree234.o utils.o version.o \
 		wcwidth.o wildcard.o cryptoapi.o wincfg.o controls.o defaults.o \
 		windlg.o \
-		window_portable.o \
+		window_portable.o winfont_fallback.o \
 		gss.o handle-io.o help.o handle-socket.o \
 		jump-list.o network.o noise.o named-pipe-client.o \
 		named-pipe-server.o agent-client.o printing.o local-proxy.o security.o \
