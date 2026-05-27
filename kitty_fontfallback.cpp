@@ -53,11 +53,28 @@ static int   g_kff_log_miss = 0;    /* count of lookup-level log lines */
 
 static void kff_log_open(void)
 {
-    char path[MAX_PATH];
-    GetTempPathA(MAX_PATH, path);
-    strncat(path, "kitty_fontfallback.log", MAX_PATH - strlen(path) - 1);
-    g_kff_log = fopen(path, "w");
     g_kff_log_miss = 0;
+
+    /* 1. Try EXE directory first (works even with non-ASCII usernames) */
+    {
+        wchar_t wpath[MAX_PATH];
+        if (GetModuleFileNameW(NULL, wpath, MAX_PATH)) {
+            wchar_t *slash = wcsrchr(wpath, L'\\');
+            if (slash) {
+                wcscpy(slash + 1, L"kitty_fontfallback.log");
+                g_kff_log = _wfopen(wpath, L"w");
+            }
+        }
+    }
+
+    /* 2. Fall back to %TEMP% via wide API */
+    if (!g_kff_log) {
+        wchar_t wpath[MAX_PATH];
+        if (GetTempPathW(MAX_PATH, wpath)) {
+            wcsncat(wpath, L"kitty_fontfallback.log", MAX_PATH - wcslen(wpath) - 1);
+            g_kff_log = _wfopen(wpath, L"w");
+        }
+    }
 }
 
 static void kff_log_close(void)
