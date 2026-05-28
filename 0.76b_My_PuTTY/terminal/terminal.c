@@ -6897,13 +6897,19 @@ static void do_paint(Terminal *term)
 				urlhack_is_link = urlhack_is_link == 1 ? 0 : 1;
 
 				// Find next bound for the toggle
-				
+
 				if (urlhack_is_link == 1) {
 					urlhack_toggle_x = urlhack_region.x1;
 					urlhack_toggle_y = urlhack_region.y1;
 
-					if (urlhack_toggle_x == term->cols - 1) {
-						// Handle special case where link ends at the last char of the row
+					if (urlhack_toggle_x >= term->cols) {
+						// Link's end-column is at-or-past the last column
+						// (x1 is half-open: x1 == cols means the link
+						// covers the rightmost cell). Push the toggle to
+						// the start of the next row so column 0 there
+						// flips urlhack_is_link back to 0; otherwise the
+						// toggle never fires and the underline bleeds
+						// across the rest of the screen.
 						urlhack_toggle_y++;
 						urlhack_toggle_x = 0;
 					}
@@ -6920,7 +6926,7 @@ static void do_paint(Terminal *term)
 					urlhack_toggle_y = urlhack_region.y0;
 				}
 			}
-			if (urlhack_is_link == 1 && urlhack_hover_current == 1) {	
+			if (urlhack_is_link == 1 && urlhack_hover_current == 1) {
 				tattr |= ATTR_UNDER;
 			}
 
