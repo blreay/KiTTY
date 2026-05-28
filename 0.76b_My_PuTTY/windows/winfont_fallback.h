@@ -40,7 +40,9 @@ typedef struct {
  *   cell_h   — font_height from init_fonts
  *   fallback_csv — comma-separated fallback font names (may be NULL/empty)
  *                  if starts with '!' the built-in list is replaced,
- *                  otherwise it is appended after the built-in list
+ *                  otherwise the user's fonts are tried FIRST and the
+ *                  built-in defaults are appended after them (duplicates
+ *                  matched case-insensitively are skipped)
  *   override_lines / n_override — array of "XXXX-YYYY:FontName" strings
  *                  (may be NULL / 0)
  */

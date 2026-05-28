@@ -358,7 +358,9 @@ reload=yes
 ;LogFile=
 
 ; Fallback: comma-separated list of font names to try when the primary
-; font lacks a character. These are appended AFTER the built-in defaults.
+; font lacks a character. The user's list is tried FIRST, then the
+; built-in defaults are appended after it (case-insensitive duplicates
+; are skipped, so naming a built-in just promotes it to the front).
 ; If the list starts with ! the built-in defaults are replaced entirely.
 ; Built-in defaults: Segoe UI Symbol, Segoe UI Emoji, Segoe UI Historic,
 ;   Cascadia Mono, Cascadia Code, Microsoft YaHei UI,

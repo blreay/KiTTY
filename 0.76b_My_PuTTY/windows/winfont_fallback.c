@@ -156,6 +156,7 @@ static int g_n_ovr;
  * =================================================================== */
 
 static const char *g_default_fallbacks[] = {
+    "Sarasa Fixed SC Nerd Font",
     "Segoe UI Symbol",
     "Segoe UI Emoji",
     "Segoe UI Historic",
@@ -458,19 +459,24 @@ void winfb_init(HDC hdc, const LOGFONT *primary,
     bool replace_builtins = false;
     parse_fallback_csv(fallback_csv, &replace_builtins);
 
-    /* if not replacing, prepend built-in defaults */
+    /* if not replacing, append built-in defaults after user slots,
+     * skipping any builtin already listed by the user (case-insensitive
+     * match by face name) so the user's ordering takes precedence. */
     if (!replace_builtins) {
-        int builtin_count = 0;
-        while (g_default_fallbacks[builtin_count]) builtin_count++;
-        if (g_n_slots + builtin_count <= WINFB_MAX_SLOTS) {
-            memmove(g_slots + builtin_count, g_slots,
-                    g_n_slots * sizeof(winfb_slot));
-            g_n_slots += builtin_count;
-            for (int i = 0; i < builtin_count; i++) {
-                copy_face(g_slots[i].name, g_default_fallbacks[i]);
-                memset(g_slots[i].hfont, 0, sizeof(HFONT) * WINFB_ATTR_DIM);
-                g_slots[i].installed = false;
+        for (int b = 0; g_default_fallbacks[b]; b++) {
+            if (g_n_slots >= WINFB_MAX_SLOTS) break;
+            bool dup = false;
+            for (int j = 0; j < g_n_slots; j++) {
+                if (stricmp(g_slots[j].name, g_default_fallbacks[b]) == 0) {
+                    dup = true;
+                    break;
+                }
             }
+            if (dup) continue;
+            copy_face(g_slots[g_n_slots].name, g_default_fallbacks[b]);
+            memset(g_slots[g_n_slots].hfont, 0, sizeof(HFONT) * WINFB_ATTR_DIM);
+            g_slots[g_n_slots].installed = false;
+            g_n_slots++;
         }
     }
 
