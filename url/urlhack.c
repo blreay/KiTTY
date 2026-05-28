@@ -277,25 +277,37 @@ void urlhack_go_find_me_some_hyperlinks(int screen_width)
     }
     urlhack_link_regions_clear();
     text_pos = window_text;
-	regmatch_t groupArray;
+	/*
+	 * Allocate enough match slots for the whole-match group AT LEAST,
+	 * but the bundled GNU regex implementation may write past `nmatch`
+	 * when the compiled pattern has many subexpressions (the urlhack
+	 * default regex has well over a dozen capture groups).  A single
+	 * regmatch_t on the stack used to be clobbered by adjacent stack
+	 * variables on 64-bit builds, which manifested as the URL-underline
+	 * state machine going haywire and painting every subsequent cell
+	 * with ATTR_UNDER.  Provide a generous fixed buffer that covers the
+	 * built-in regexes; if a user-supplied regex needs more, we still
+	 * only inspect [0].
+	 */
+	regmatch_t groupArray[32];
 	int error ;
-    error = regexec(&urlhack_rx, text_pos, 1, &groupArray ,0) ;
+    error = regexec(&urlhack_rx, text_pos, 32, groupArray ,0) ;
     while( error==0 ) {
 
-	    char* start_pos = text_pos + groupArray.rm_so ; if(start_pos[0]==' ') start_pos++ ;
+	    char* start_pos = text_pos + groupArray[0].rm_so ; if(start_pos[0]==' ') start_pos++ ;
 
         int x0 = (start_pos - window_text) % screen_width;
         int y0 = (start_pos - window_text) / screen_width;
-	    
-	int x1 = (text_pos + groupArray.rm_eo - window_text) % screen_width;
-        int y1 = (text_pos + groupArray.rm_eo - window_text) / screen_width;
-	    
+
+	int x1 = (text_pos + groupArray[0].rm_eo - window_text) % screen_width;
+        int y1 = (text_pos + groupArray[0].rm_eo - window_text) / screen_width;
+
 	if (x0 >= screen_width) x0 = screen_width - 1;
         if (x1 >= screen_width) x1 = screen_width - 1;
         urlhack_add_link_region(x0, y0, x1, y1);
-		    
-	text_pos = text_pos + groupArray.rm_eo + 1;
-	error = regexec(&urlhack_rx, text_pos, 1, &groupArray ,REG_NOTBOL) ;
+
+	text_pos = text_pos + groupArray[0].rm_eo + 1;
+	error = regexec(&urlhack_rx, text_pos, 32, groupArray ,REG_NOTBOL) ;
 	}
 #endif
 }
