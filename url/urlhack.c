@@ -278,20 +278,30 @@ void urlhack_go_find_me_some_hyperlinks(int screen_width)
     urlhack_link_regions_clear();
     text_pos = window_text;
 	/*
-	 * Allocate enough match slots for the whole-match group AT LEAST,
-	 * but the bundled GNU regex implementation may write past `nmatch`
-	 * when the compiled pattern has many subexpressions (the urlhack
-	 * default regex has well over a dozen capture groups).  A single
-	 * regmatch_t on the stack used to be clobbered by adjacent stack
-	 * variables on 64-bit builds, which manifested as the URL-underline
-	 * state machine going haywire and painting every subsequent cell
-	 * with ATTR_UNDER.  Provide a generous fixed buffer that covers the
-	 * built-in regexes; if a user-supplied regex needs more, we still
-	 * only inspect [0].
+	 * Allocate enough match slots that the regex implementation can
+	 * never write past the buffer no matter how it interprets nmatch.
+	 *
+	 * Background: the bundled GNU regex.c, when compiled with the
+	 * `re_pattern_buffer.regs_allocated` flag in its default mode, may
+	 * write up to `re_nsub + 1` subexpression slots regardless of the
+	 * `nmatch` argument we pass — on 64-bit MinGW this clobbers the
+	 * adjacent stack locals.  The first symptom was the URL-underline
+	 * state machine going haywire and tagging every screen cell with
+	 * ATTR_UNDER after typing a URL.  A subsequent symptom was a hard
+	 * crash on shell login (Ubuntu sends OSC title sequences during
+	 * MOTD that drive the prompt redraw through this code path), as
+	 * the trampled bytes happened to land on something load-bearing.
+	 *
+	 * Size the match buffer to `re_nsub + 1` (whole-match plus all
+	 * subexpressions).  Allocate on the heap so it scales with whatever
+	 * regex the user may configure; cap at a sane upper bound to refuse
+	 * pathological patterns.
 	 */
-	regmatch_t groupArray[32];
+	size_t nmatch = urlhack_rx.re_nsub + 1;
+	if (nmatch > 256) nmatch = 256;          /* sanity cap */
+	regmatch_t *groupArray = snewn(nmatch, regmatch_t);
 	int error ;
-    error = regexec(&urlhack_rx, text_pos, 32, groupArray ,0) ;
+    error = regexec(&urlhack_rx, text_pos, nmatch, groupArray ,0) ;
     while( error==0 ) {
 
 	    char* start_pos = text_pos + groupArray[0].rm_so ; if(start_pos[0]==' ') start_pos++ ;
@@ -307,8 +317,9 @@ void urlhack_go_find_me_some_hyperlinks(int screen_width)
         urlhack_add_link_region(x0, y0, x1, y1);
 
 	text_pos = text_pos + groupArray[0].rm_eo + 1;
-	error = regexec(&urlhack_rx, text_pos, 32, groupArray ,REG_NOTBOL) ;
+	error = regexec(&urlhack_rx, text_pos, nmatch, groupArray ,REG_NOTBOL) ;
 	}
+	sfree(groupArray);
 #endif
 }
 
