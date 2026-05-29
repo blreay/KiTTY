@@ -447,6 +447,27 @@ static bool ssh2_transport_filter_queue(struct ssh2_transport_state *s)
 {
     PktIn *pktin;
 
+    if (!s->enabled_incoming_crypto) {
+        /*
+         * Record if any non-KEXINIT packet is sitting at the head of
+         * the queue while we're still in the cleartext phase. If
+         * strict-KEX subsequently turns out to be enabled, that
+         * packet is a protocol violation (Terrapin defense).
+         */
+        PktIn *peek = pq_peek(s->ppl.in_pq);
+        if (peek && peek->type != SSH2_MSG_KEXINIT)
+            s->seen_non_kexinit = true;
+
+        if (s->strict_kex) {
+            /*
+             * In strict-KEX mode prior to crypto enablement we don't
+             * filter out anything; let the main coroutine see (and
+             * complain about) extraneous packets.
+             */
+            return false;
+        }
+    }
+
     while (1) {
         if (ssh2_common_filter_queue(&s->ppl))
             return true;
@@ -837,10 +858,13 @@ static void ssh2_write_kexinit_lists(
             }
         }
         if (i == KEXLIST_KEX && first_time) {
-            if (our_hostkeys)          /* we're the server */
+            if (our_hostkeys) {        /* we're the server */
                 add_to_commasep(list, "ext-info-s");
-            else                       /* we're the client */
+                add_to_commasep(list, "kex-strict-s-v00@openssh.com");
+            } else {                   /* we're the client */
                 add_to_commasep(list, "ext-info-c");
+                add_to_commasep(list, "kex-strict-c-v00@openssh.com");
+            }
         }
         put_stringsb(pktout, list);
     }
@@ -858,7 +882,7 @@ static bool ssh2_scan_kexinits(
     bool *warn_kex, bool *warn_hk, bool *warn_cscipher, bool *warn_sccipher,
     Ssh *ssh, bool *ignore_guess_cs_packet, bool *ignore_guess_sc_packet,
     int *n_server_hostkeys, int server_hostkeys[MAXKEXLIST], unsigned *hkflags,
-    bool *can_send_ext_info)
+    bool *can_send_ext_info, bool first_time, bool *strict_kex)
 {
     BinarySource client[1], server[1];
     int i;
@@ -1072,6 +1096,22 @@ static bool ssh2_scan_kexinits(
                 *can_send_ext_info = true;
     }
 
+    /*
+     * Check whether the other side advertised support for kex-strict
+     * (the OpenSSH anti-Terrapin signalling).
+     */
+    if (first_time) {
+        ptrlen strict_advert =
+            (server_hostkeys ?
+             PTRLEN_LITERAL("kex-strict-c-v00@openssh.com") :
+             PTRLEN_LITERAL("kex-strict-s-v00@openssh.com"));
+        ptrlen list = (server_hostkeys ? clists[KEXLIST_KEX] :
+                       slists[KEXLIST_KEX]);
+        for (ptrlen word; get_commasep_word(&list, &word) ;)
+            if (ptrlen_eq_ptrlen(word, strict_advert))
+                *strict_kex = true;
+    }
+
     if (server_hostkeys) {
         /*
          * Finally, make an auxiliary pass over the server's host key
@@ -1243,8 +1283,22 @@ static void ssh2_transport_process_queue(PacketProtocolLayer *ppl)
                 s->kexlists, &s->kex_alg, &s->hostkey_alg, s->cstrans,
                 s->sctrans, &s->warn_kex, &s->warn_hk, &s->warn_cscipher,
                 &s->warn_sccipher, s->ppl.ssh, NULL, &s->ignorepkt, &nhk, hks,
-                &s->hkflags, &s->can_send_ext_info))
+                &s->hkflags, &s->can_send_ext_info, !s->got_session_id,
+                &s->strict_kex))
             return; /* false means a fatal error function was called */
+
+        /*
+         * If we've just turned on strict kex mode, say so, and
+         * retrospectively fault any pre-KEXINIT extraneous packets.
+         */
+        if (!s->got_session_id && s->strict_kex) {
+            ppl_logevent("Enabling strict key exchange semantics");
+            if (s->seen_non_kexinit) {
+                ssh_proto_error(s->ppl.ssh, "Received a packet before KEXINIT "
+                                "in strict-kex mode");
+                return;
+            }
+        }
 
         /*
          * In addition to deciding which host key we're actually going
@@ -1435,7 +1489,9 @@ static void ssh2_transport_process_queue(PacketProtocolLayer *ppl)
             s->ppl.bpp,
             s->out.cipher, cipher_key->u, cipher_iv->u,
             s->out.mac, s->out.etm_mode, mac_key->u,
-            s->out.comp, s->out.comp_delayed);
+            s->out.comp, s->out.comp_delayed,
+            s->strict_kex);
+        s->enabled_outgoing_crypto = true;
 
         strbuf_free(cipher_key);
         strbuf_free(cipher_iv);
@@ -1526,7 +1582,9 @@ static void ssh2_transport_process_queue(PacketProtocolLayer *ppl)
             s->ppl.bpp,
             s->in.cipher, cipher_key->u, cipher_iv->u,
             s->in.mac, s->in.etm_mode, mac_key->u,
-            s->in.comp, s->in.comp_delayed);
+            s->in.comp, s->in.comp_delayed,
+            s->strict_kex);
+        s->enabled_incoming_crypto = true;
 
         strbuf_free(cipher_key);
         strbuf_free(cipher_iv);

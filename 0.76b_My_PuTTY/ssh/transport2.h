@@ -186,6 +186,8 @@ struct ssh2_transport_state {
     bool warned_about_no_gss_transient_hostkey;
     bool got_session_id;
     bool can_send_ext_info, post_newkeys_ext_info;
+    bool strict_kex, enabled_outgoing_crypto, enabled_incoming_crypto;
+    bool seen_non_kexinit;
     int dlgret;
     bool guessok;
     bool ignorepkt;

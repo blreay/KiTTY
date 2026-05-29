@@ -3115,10 +3115,14 @@ static void reset_window(int reinit) {
 	extra_height = wr.bottom - wr.top - cr.bottom + cr.top;
 
 	if (resize_action != RESIZE_TERM) {
-	    if (font_width != win_width/term->cols || 
+	    if (font_width != win_width/term->cols ||
 		font_height != win_height/term->rows) {
+		int fw = (win_width - 2*window_border) / term->cols;
+		int fh = (win_height - 2*window_border) / term->rows;
+		if (fw < 1) fw = 1;
+		if (fh < 1) fh = 1;
 		deinit_fonts();
-		init_fonts(win_width/term->cols, win_height/term->rows);
+		init_fonts(fw, fh);
 		offset_width = (win_width-font_width*term->cols)/2;
 		offset_height = (win_height-font_height*term->rows)/2;
                 InvalidateRect(wgs.term_hwnd, NULL, true);
@@ -3128,15 +3132,17 @@ static void reset_window(int reinit) {
 #endif
 	    }
 	} else {
-	    if (font_width * term->cols != win_width || 
+	    if (font_width * term->cols != win_width ||
 		font_height * term->rows != win_height) {
-		/* Our only choice at this point is to change the 
+		/* Our only choice at this point is to change the
 		 * size of the terminal; Oh well.
 		 */
-		term_size(term, win_height/font_height, win_width/font_width,
+		term_size(term,
+			  (win_height - 2*window_border) / font_height,
+			  (win_width  - 2*window_border) / font_width,
 			  conf_get_int(conf, CONF_savelines));
-		offset_width = (win_width-font_width*term->cols)/2;
-		offset_height = (win_height-font_height*term->rows)/2;
+		offset_width = (win_width - window_border - font_width*term->cols)/2;
+		offset_height = (win_height - window_border - font_height*term->rows)/2;
                 InvalidateRect(wgs.term_hwnd, NULL, true);
 #ifdef RDB_DEBUG_PATCH
 		debug("reset_window() -> Zoomed term_size\n");
