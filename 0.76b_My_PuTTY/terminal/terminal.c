@@ -1294,7 +1294,13 @@ static void term_schedule_update(Terminal *term)
  */
 static void seen_disp_event(Terminal *term)
 {
-    term->seen_disp_event = true;      /* for scrollback-reset-on-activity */
+    if (term->scroll_on_disp) {
+        term->disptop = 0;             /* return to main screen */
+        term->win_scrollbar_update_pending = true;
+    }
+    term->cblinker = true;
+    term->cblink_pending = false;
+    term_schedule_cblink(term);
     term_schedule_update(term);
 }
 
@@ -1330,15 +1336,8 @@ static void term_schedule_cblink(Terminal *term)
 }
 
 /*
- * Call to reset cursor blinking on new output.
+ * (term_reset_cblink subsumed into seen_disp_event.)
  */
-static void term_reset_cblink(Terminal *term)
-{
-    seen_disp_event(term);
-    term->cblinker = true;
-    term->cblink_pending = false;
-    term_schedule_cblink(term);
-}
 
 /*
  * Call to begin a visual bell.
@@ -1510,17 +1509,10 @@ void term_update(Terminal *term)
     }
 
     if (win_setup_draw_ctx(term->win)) {
-        bool need_sbar_update = term->seen_disp_event ||
-            term->win_scrollbar_update_pending;
-        term->win_scrollbar_update_pending = false;
-	if (term->seen_disp_event && term->scroll_on_disp) {
-	    term->disptop = 0;	       /* return to main screen */
-	    term->seen_disp_event = false;
-	    need_sbar_update = true;
-	}
-
-	if (need_sbar_update)
+	if (term->win_scrollbar_update_pending) {
+	    term->win_scrollbar_update_pending = false;
 	    update_sbar(term);
+	}
 	do_paint(term);
 	win_set_cursor_pos(
             term->win, term->curs.x, term->curs.y - term->disptop);
@@ -1553,9 +1545,10 @@ void term_seen_key_event(Terminal *term)
     /*
      * Reset the scrollback on keypress, if we're doing that.
      */
-    if (term->scroll_on_key) {
+    if (term->scroll_on_key && term->disptop != 0) {
 	term->disptop = 0;	       /* return to main screen */
-	seen_disp_event(term);
+	term->win_scrollbar_update_pending = true;
+	term_schedule_update(term);
     }
 }
 
@@ -2040,7 +2033,6 @@ Terminal *term_init(Conf *myconf, struct unicode_data *ucsdata, TermWin *win)
     term->print_job = NULL;
     term->vt52_mode = false;
     term->cr_lf_return = false;
-    term->seen_disp_event = false;
     term->mouse_is_down = 0;
     term->reset_132 = false;
     term->cblinker = false;
@@ -2700,6 +2692,12 @@ static void scroll(Terminal *term, int topline, int botline,
 		 */
 		if (term->disptop > -term->savelines && term->disptop < 0)
 		    term->disptop--;
+
+		/*
+		 * We've just modified the data that the terminal's
+		 * scrollbar is based on, so remember to update it.
+		 */
+		term->win_scrollbar_update_pending = true;
 	    }
             resizeline(term, line, term->cols);
 #ifdef MOD_HYPERLINK
@@ -5140,7 +5138,7 @@ static void term_out(Terminal *term)
 		    if (term->blink_cur != (cursor_shape & 1))
 		    {
 			term->blink_cur = cursor_shape & 1;
-			term_reset_cblink(term);
+			seen_disp_event(term);
 		    }
 		    term->termstate = TOPLEVEL;
 #endif
@@ -8980,7 +8978,6 @@ static void term_added_data(Terminal *term)
 {
     if (!term->in_term_out) {
 	term->in_term_out = true;
-	term_reset_cblink(term);
 	/*
 	 * During drag-selects, we do not process terminal input,
 	 * because the user will want the screen to hold still to

@@ -816,7 +816,13 @@ static void rsa2_sign(ssh_key *key, ptrlen data,
     mp_free(in);
 
     put_stringz(bs, sign_alg_name);
-    nbytes = (mp_get_nbits(out) + 7) / 8;
+    if (flags == 0) {
+        /* RFC 4253 "ssh-rsa": signature integer is sent unpadded. */
+        nbytes = (mp_get_nbits(out) + 7) / 8;
+    } else {
+        /* RFC 8332 rsa-sha2-{256,512}: pad to modulus byte length. */
+        nbytes = (mp_get_nbits(rsa->modulus) + 7) / 8;
+    }
     put_uint32(bs, nbytes);
     for (size_t i = 0; i < nbytes; i++)
         put_byte(bs, mp_get_byte(out, nbytes - 1 - i));
