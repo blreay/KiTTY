@@ -562,6 +562,10 @@ static void supdup_log(Plug *plug, PlugLogType type, SockAddr *addr, int port,
     backend_socket_log(supdup->seat, supdup->logctx, type, addr, port,
                        error_msg, error_code,
                        supdup->conf, supdup->state != CONNECTING);
+    if (type == PLUGLOG_CONNECT_SUCCESS) {
+        /* No local authentication phase in this protocol */
+        seat_set_trust_status(supdup->seat, false);
+    }
 }
 
 static void supdup_closing(Plug *plug, const char *error_msg, int error_code,
@@ -763,7 +767,7 @@ static char *supdup_init(const BackendVtable *x, Seat *seat,
      * We next expect a connection message followed by %TDNOP from the server
      */
     supdup->state = CONNECTING;
-    seat_set_trust_status(supdup->seat, false);
+    /* trust status cleared in supdup_log on PLUGLOG_CONNECT_SUCCESS */
 
     /* Make sure the terminal is in UTF-8 mode. */
     c_write(supdup, (unsigned char *)utf8, strlen(utf8));

@@ -3545,8 +3545,6 @@ static void wm_size_resize_term(LPARAM lParam, bool border)
          * numbers of resize events.
          */
         need_backend_resize = true;
-        conf_set_int(conf, CONF_height, h);
-        conf_set_int(conf, CONF_width, w);
     } else {
         term_size(term, h, w,
                   conf_get_int(conf, CONF_savelines));
@@ -3556,6 +3554,10 @@ static void wm_size_resize_term(LPARAM lParam, bool border)
          * to. */
         sent_term_size = true;
     }
+    /* Always keep conf in sync, even if no WM_ENTERSIZEMOVE preceded
+     * (e.g. tools like PowerToys FancyZones send a bare WM_SIZE). */
+    conf_set_int(conf, CONF_height, h);
+    conf_set_int(conf, CONF_width, w);
 }
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,

@@ -1325,9 +1325,17 @@ static void term_schedule_tblink(Terminal *term)
  */
 static void term_schedule_cblink(Terminal *term)
 {
-    if (term->blink_cur && term->has_focus) {
+    int delay = CBLINK_DELAY;
+    /* On Windows, CURSORBLINK expands to GetCaretBlinkTime(), which
+     * returns INFINITE (0xFFFFFFFF) when caret blinking is disabled in
+     * Control Panel. Without this guard we'd schedule a timer with a
+     * useless huge value (or, depending on signedness, a tight loop).
+     * Treat any non-positive or out-of-range value as "no blink". */
+    if (delay <= 0 || (unsigned)delay >= 0x7FFFFFFFu)
+        delay = 0;
+    if (term->blink_cur && term->has_focus && delay > 0) {
 	if (!term->cblink_pending)
-	    term->next_cblink = schedule_timer(CBLINK_DELAY, term_timer, term);
+	    term->next_cblink = schedule_timer(delay, term_timer, term);
 	term->cblink_pending = true;
     } else {
 	term->cblinker = true;         /* reset when not in use */

@@ -620,6 +620,11 @@ static void telnet_log(Plug *plug, PlugLogType type, SockAddr *addr, int port,
     backend_socket_log(telnet->seat, telnet->logctx, type, addr, port,
                        error_msg, error_code, telnet->conf,
                        telnet->session_started);
+    if (type == PLUGLOG_CONNECT_SUCCESS) {
+        /* No local authentication phase in this protocol — but defer
+         * trust-status clear until the proxy (if any) is done. */
+        seat_set_trust_status(telnet->seat, false);
+    }
 }
 
 static void telnet_closing(Plug *plug, const char *error_msg, int error_code,
@@ -689,8 +694,9 @@ static char *telnet_init(const BackendVtable *vt, Seat *seat,
     char *loghost;
     int addressfamily;
 
-    /* No local authentication phase in this protocol */
-    seat_set_trust_status(seat, false);
+    /* No local authentication phase in this protocol — but defer
+     * trust-status clear until PLUGLOG_CONNECT_SUCCESS, so a proxy auth
+     * prompt isn't displayed without the trust sigil. */
 
     telnet = snew(Telnet);
     telnet->plug.vt = &Telnet_plugvt;

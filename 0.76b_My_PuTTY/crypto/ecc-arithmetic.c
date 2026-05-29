@@ -304,11 +304,12 @@ WeierstrassPoint *ecc_weierstrass_add(WeierstrassPoint *P, WeierstrassPoint *Q)
     ecc_weierstrass_add_prologue(
         P, Q, &Px, &Py, &Qx, &denom, &lambda_n, &lambda_d);
 
-    /* Never expect to have received two mutually inverse inputs, or
-     * two identical ones (which would make this a doubling). In other
-     * words, the two input x-coordinates (after putting over a common
-     * denominator) should never have been equal. */
-    assert(!mp_eq_integer(lambda_n, 0));
+    /* No assertion here. The previous assert(!mp_eq_integer(lambda_d, 0))
+     * was bogus (wrong variable), and the corrected check would itself
+     * be triggered by harmless intermediate values produced by
+     * ecc_weierstrass_multiply's constant-time Montgomery-ladder.
+     * The right check is the caller's job — see ecdsa_public, which
+     * reduces the exponent mod G_order. (PuTTY 65b8f37c.) */
 
     /* Now go to the common epilogue code. */
     ecc_weierstrass_epilogue(Px, Qx, Py, denom, lambda_n, lambda_d, S);
@@ -390,9 +391,21 @@ WeierstrassPoint *ecc_weierstrass_add_general(
     ecc_weierstrass_add_prologue(
         P, Q, &Px, &Py, &Qx, &denom, &lambda_n, &lambda_d);
 
-    /* Slope if P == Q */
+    /* Slope if P == Q. For correctness when P and Q are different
+     * representations of the same point, we must compute the tangent
+     * relative to the *re-denominated* P (over the common denom that
+     * add_prologue picked), not relative to the original P. (PuTTY
+     * c15d4d7b.) */
     mp_int *lambda_n_tangent, *lambda_d_tangent;
-    ecc_weierstrass_tangent_slope(P, &lambda_n_tangent, &lambda_d_tangent);
+    {
+        WeierstrassPoint P_redenominated;
+        P_redenominated.wc = wc;
+        P_redenominated.X = Px;
+        P_redenominated.Y = Py;
+        P_redenominated.Z = denom;
+        ecc_weierstrass_tangent_slope(
+            &P_redenominated, &lambda_n_tangent, &lambda_d_tangent);
+    }
 
     /* Select between those slopes depending on whether P == Q */
     unsigned same_x_coord = mp_eq_integer(lambda_d, 0);

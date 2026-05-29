@@ -39,6 +39,10 @@ static void raw_log(Plug *plug, PlugLogType type, SockAddr *addr, int port,
     Raw *raw = container_of(plug, Raw, plug);
     backend_socket_log(raw->seat, raw->logctx, type, addr, port,
                        error_msg, error_code, raw->conf, raw->session_started);
+    if (type == PLUGLOG_CONNECT_SUCCESS) {
+        /* No local authentication phase in this protocol */
+        seat_set_trust_status(raw->seat, false);
+    }
 }
 
 static void raw_check_close(Raw *raw)
@@ -130,8 +134,8 @@ static char *raw_init(const BackendVtable *vt, Seat *seat,
     int addressfamily;
     char *loghost;
 
-    /* No local authentication phase in this protocol */
-    seat_set_trust_status(seat, false);
+    /* Trust-status is cleared in raw_log on PLUGLOG_CONNECT_SUCCESS, so
+     * that an interactive proxy auth prompt is not shown without sigil. */
 
     raw = snew(Raw);
     raw->plug.vt = &Raw_plugvt;
