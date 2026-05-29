@@ -7938,6 +7938,11 @@ char * make_title( char * fmt, const char * title ) {
 }
 
 void set_title_internal(TermWin *tw, const char *title) {
+    /* PuTTY 0.77 (commit 5de1df1b): skip the SetWindowText call if the
+     * title is unchanged. Some shell prompts reset the title on every
+     * line which used to cause unnecessary GUI flicker. */
+    if (window_name && !strcmp(window_name, title))
+        return;
     sfree(window_name);
     window_name = dupstr(title);
     if (conf_get_bool(conf, CONF_win_name_always) || !IsIconic(wgs.term_hwnd))
