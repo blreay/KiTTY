@@ -90,6 +90,9 @@
 #ifndef WM_MOUSEWHEEL
 #define WM_MOUSEWHEEL 0x020A	       /* not defined in earlier SDKs */
 #endif
+#ifndef WM_MOUSEHWHEEL
+#define WM_MOUSEHWHEEL 0x020E	       /* horizontal scroll, PuTTY 0.79 */
+#endif
 #ifndef WHEEL_DELTA
 #define WHEEL_DELTA 120
 #endif
@@ -6076,10 +6079,11 @@ if( (GetKeyState(VK_MENU)&0x8000) && (wParam==VK_SPACE) ) {
 #endif
 
       default:
-	if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
+	if (message == wm_mousewheel || message == WM_MOUSEWHEEL
+				     || message == WM_MOUSEHWHEEL) {
 	    bool shift_pressed = false, control_pressed = false;
 
-	    if (message == WM_MOUSEWHEEL) {
+	    if (message == WM_MOUSEWHEEL || message == WM_MOUSEHWHEEL) {
 		wheel_accumulator += (short)HIWORD(wParam);
 		shift_pressed=LOWORD(wParam) & MK_SHIFT;
 		control_pressed=LOWORD(wParam) & MK_CONTROL;
@@ -6098,10 +6102,12 @@ if( (GetKeyState(VK_MENU)&0x8000) && (wParam==VK_SPACE) ) {
 
 		/* reduce amount for next time */
 		if (wheel_accumulator > 0) {
-		    b = MBT_WHEEL_UP;
+		    b = (message == WM_MOUSEHWHEEL) ? MBT_WHEEL_RIGHT
+						    : MBT_WHEEL_UP;
 		    wheel_accumulator -= WHEEL_DELTA;
 		} else if (wheel_accumulator < 0) {
-		    b = MBT_WHEEL_DOWN;
+		    b = (message == WM_MOUSEHWHEEL) ? MBT_WHEEL_LEFT
+						    : MBT_WHEEL_DOWN;
 		    wheel_accumulator += WHEEL_DELTA;
 		} else
 		    break;
@@ -6136,7 +6142,9 @@ if( (GetKeyState(VK_MENU)&0x8000) && (wParam==VK_SPACE) ) {
 		    */
 		    } else if (control_pressed) {
 			ChangeFontSize(term,conf,hwnd, MBT_WHEEL_UP == b ? 1 : -1);
-		} else {
+		} else if (message != WM_MOUSEHWHEEL) {
+		    /* PuTTY 0.79 1526b563: horizontal wheel events don't
+		     * fall through to the vertical-scroll fallback. */
 				/*
 				 * PuttyFeatures: Scroll Lines
 				 */
