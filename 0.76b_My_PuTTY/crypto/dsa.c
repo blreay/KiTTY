@@ -411,6 +411,18 @@ mp_int *dss_gen_k(const char *id_string, mp_int *modulus,
      */
     ssh_hash *h;
     unsigned char digest512[64];
+    /* CVE-2024-31497: extend proto_k to 128 bytes (1024 bits) so the
+     * mod-q reduction is not a no-op when q is larger than 2^512.
+     * The original code generated only 64 bytes (512 bits), which is
+     * smaller than the NIST P521 curve order (~2^521), so for P521
+     * ECDSA every nonce was in [2, 2^512+2) — a heavy bias that
+     * compromises the private key after a small number of signatures.
+     * We hash twice with different identifying prefixes and concatenate.
+     * (PuTTY upstream fix was a wholesale switch to RFC 6979, c193fe98.
+     * This is a minimal hot-fix that defeats the same bias without
+     * pulling in the full RFC implementation.)
+     */
+    unsigned char digest1024[128];
 
     /*
      * Hash some identifying text plus x.
@@ -427,6 +439,23 @@ mp_int *dss_gen_k(const char *id_string, mp_int *modulus,
     put_data(h, digest512, sizeof(digest512));
     put_data(h, digest, digest_len);
     ssh_hash_final(h, digest512);
+    /* ssh_hash_final implicitly frees h */
+
+    /* Copy the first 64 bytes of proto_k. */
+    memcpy(digest1024, digest512, 64);
+
+    /* Now generate a second independent 64 bytes by hashing a
+     * differently-tagged version of the same inputs. */
+    h = ssh_hash_new(&ssh_sha512);
+    put_asciz(h, id_string);
+    put_asciz(h, " (2nd half for CVE-2024-31497)");
+    put_mp_ssh2(h, private_key);
+    ssh_hash_digest(h, digest512);
+    ssh_hash_reset(h);
+    put_data(h, digest512, sizeof(digest512));
+    put_data(h, digest, digest_len);
+    ssh_hash_final(h, digest512);
+    memcpy(digest1024 + 64, digest512, 64);
 
     /*
      * Now convert the result into a bignum, and coerce it to the
@@ -434,13 +463,15 @@ mp_int *dss_gen_k(const char *id_string, mp_int *modulus,
      */
     mp_int *modminus2 = mp_copy(modulus);
     mp_sub_integer_into(modminus2, modminus2, 2);
-    mp_int *proto_k = mp_from_bytes_be(make_ptrlen(digest512, 64));
+    mp_int *proto_k = mp_from_bytes_be(make_ptrlen(digest1024,
+                                                   sizeof(digest1024)));
     mp_int *k = mp_mod(proto_k, modminus2);
     mp_free(proto_k);
     mp_free(modminus2);
     mp_add_integer_into(k, k, 2);
 
     smemclr(digest512, sizeof(digest512));
+    smemclr(digest1024, sizeof(digest1024));
 
     return k;
 }
