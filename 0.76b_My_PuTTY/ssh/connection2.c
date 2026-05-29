@@ -990,7 +990,11 @@ static void ssh2_connection_process_queue(PacketProtocolLayer *ppl)
      */
     if (ssh2_connection_need_antispoof_prompt(s)) {
         s->antispoof_prompt = new_prompts();
-        s->antispoof_prompt->to_server = true;
+        /* PuTTY 0.78 bdb3ac9f: the antispoof "press Return" prompt is
+         * consumed locally by PuTTY/Plink, not sent to the server.
+         * Mark it to_server=false so cmdline_get_passwd_input won't
+         * accidentally answer it with -pw / -pwfile content. */
+        s->antispoof_prompt->to_server = false;
         s->antispoof_prompt->from_server = false;
         s->antispoof_prompt->name = dupstr("Authentication successful");
 #ifndef MOD_PERSO

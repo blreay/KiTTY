@@ -183,9 +183,13 @@ int cmdline_get_passwd_input(prompts_t *p)
     /*
      * We only handle prompts which don't echo (which we assume to be
      * passwords), and (currently) we only cope with a password prompt
-     * that comes in a prompt-set on its own.
+     * that comes in a prompt-set on its own.  Also, since PuTTY 0.78
+     * (bdb3ac9f), we restrict it to prompts whose answers will be sent
+     * to the server — never to local UI prompts (private-key passphrase,
+     * Plink's antispoof "press Return to begin session" prompt).
      */
-    if (!cmdline_password || p->n_prompts != 1 || p->prompts[0]->echo) {
+    if (!cmdline_password || p->n_prompts != 1 || p->prompts[0]->echo ||
+        !p->to_server) {
 	return -1;
     }
 
