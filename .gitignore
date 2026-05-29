@@ -19,3 +19,4 @@ regex/libregex.a
 # Editor / build leftovers
 *.swp
 0.76b_My_PuTTY/windows/putty.upx
+.pick-state/
