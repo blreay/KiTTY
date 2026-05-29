@@ -1675,11 +1675,13 @@ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 				      ctrl->fileselect.shortcut);
 	    shortcuts[nshortcuts++] = ctrl->fileselect.shortcut;
 	    editbutton(&pos, escaped, base_id, base_id+1,
-		       "Bro&wse...", base_id+2);
+		       "Browse...", base_id+2);
 #if (defined MOD_PERSO) && (!defined MOD_ZMODEM)
 	    if(GetZModemFlag()) { shortcuts[nshortcuts++] = 'w'; }
 #endif
-	    shortcuts[nshortcuts++] = 'w';
+	    /* PuTTY 0.78 3bb7e6ba: don't claim 'w' as a shortcut on
+	     * panels (like Credentials / Auth) that have two file-select
+	     * buttons — second registration assertion-fails. */
 	    sfree(escaped);
 	    break;
 	  case CTRL_FONTSELECT:
