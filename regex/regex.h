@@ -32,6 +32,28 @@
 #include <stddef.h>
 #endif
 
+/* The bundled libregex_64.a is built from GNULIB regex.c, which uses
+ * glibc-style 8-byte `unsigned long` and `ssize_t`-typed regoff_t on
+ * 64-bit targets.  MinGW-w64 (LLP64) makes `unsigned long` and `int` only
+ * 4 bytes, so the historical KiTTY layout of `re_pattern_buffer` and
+ * `regmatch_t` did NOT match the library on win64, causing fields like
+ * re_nsub and rm_eo to be read from the wrong byte offsets.  Symptoms:
+ * the URL regex loop spun forever pushing thousands of bogus link
+ * regions into the toggle state machine, and the screen ended up
+ * blanket-underlined.  Define wide aliases so the C structs match the
+ * library exactly on win64.  32-bit builds keep the historical layout
+ * (which happens to coincide with the library's 32-bit layout).
+ */
+#if defined(_WIN64) || defined(__MINGW64__) || defined(__x86_64__)
+#  include <stdint.h>
+#  include <sys/types.h>   /* ssize_t */
+#  define KITTY_REGEX_ULONG  uint64_t
+#  define KITTY_REGEX_OFFT   ssize_t
+#else
+#  define KITTY_REGEX_ULONG  unsigned long
+#  define KITTY_REGEX_OFFT   int
+#endif
+
 
 /* The following bits are used to determine the regexp syntax we
    recognize.  The set/not-set meanings are chosen so that Emacs syntax
@@ -287,10 +309,10 @@ struct re_pattern_buffer
   unsigned char *buffer;
 
 	/* Number of bytes to which `buffer' points.  */
-  unsigned long allocated;
+  KITTY_REGEX_ULONG allocated;
 
 	/* Number of bytes actually used in `buffer'.  */
-  unsigned long used;	
+  KITTY_REGEX_ULONG used;
 
         /* Syntax setting with which the pattern was compiled.  */
   reg_syntax_t syntax;
@@ -353,8 +375,10 @@ typedef struct re_pattern_buffer regex_t;
    defined both in `regex.c' and here.  */
 #define RE_EXACTN_VALUE 1
 
-/* Type for byte offsets within the string.  POSIX mandates this.  */
-typedef int regoff_t;
+/* Type for byte offsets within the string.  POSIX mandates this. The
+   bundled libregex_64.a uses ssize_t on 64-bit, so KITTY_REGEX_OFFT is
+   set up to match (see the macros at the top of this file).  */
+typedef KITTY_REGEX_OFFT regoff_t;
 
 
 /* This is the structure we store register match data in.  See

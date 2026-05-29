@@ -278,26 +278,15 @@ void urlhack_go_find_me_some_hyperlinks(int screen_width)
     urlhack_link_regions_clear();
     text_pos = window_text;
 	/*
-	 * Allocate enough match slots that the regex implementation can
-	 * never write past the buffer no matter how it interprets nmatch.
-	 *
-	 * Background: the bundled GNU regex.c, when compiled with the
-	 * `re_pattern_buffer.regs_allocated` flag in its default mode, may
-	 * write up to `re_nsub + 1` subexpression slots regardless of the
-	 * `nmatch` argument we pass — on 64-bit MinGW this clobbers the
-	 * adjacent stack locals.  The first symptom was the URL-underline
-	 * state machine going haywire and tagging every screen cell with
-	 * ATTR_UNDER after typing a URL.  A subsequent symptom was a hard
-	 * crash on shell login (Ubuntu sends OSC title sequences during
-	 * MOTD that drive the prompt redraw through this code path), as
-	 * the trampled bytes happened to land on something load-bearing.
-	 *
 	 * Size the match buffer to `re_nsub + 1` (whole-match plus all
-	 * subexpressions).  Allocate on the heap so it scales with whatever
-	 * regex the user may configure; cap at a sane upper bound to refuse
-	 * pathological patterns.
+	 * subexpressions) so the regex implementation has enough slots to
+	 * write into.  This relies on regex.h's struct layout matching the
+	 * bundled libregex_64.a — see the KITTY_REGEX_ULONG / KITTY_REGEX_OFFT
+	 * notes at the top of regex.h for why that was historically broken on
+	 * 64-bit MinGW.
 	 */
 	size_t nmatch = urlhack_rx.re_nsub + 1;
+	if (nmatch < 4) nmatch = 4;              /* tiny safety floor */
 	if (nmatch > 256) nmatch = 256;          /* sanity cap */
 	regmatch_t *groupArray = snewn(nmatch, regmatch_t);
 	int error ;
