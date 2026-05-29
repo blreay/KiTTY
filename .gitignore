@@ -6,6 +6,16 @@
 kitty_ini.h
 kitty_help.h
 
+# Vendored archives now live under _32.a / _64.a names. The plain .a
+# files are gone; if a misbehaving make recipe writes them again, ignore.
+base64/base64.a
+bcrypt/bcrypt.a
+blocnote/notepad.a
+jpeg/libjpeg.a
+md5/MD5check.a
+mini/mini.a
+regex/libregex.a
+
 # Editor / build leftovers
 *.swp
 0.76b_My_PuTTY/windows/putty.upx

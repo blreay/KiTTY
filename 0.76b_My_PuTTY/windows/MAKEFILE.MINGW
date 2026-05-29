@@ -96,6 +96,13 @@
 # make -e TOOLPATH=/usr/bin/i686-w64-mingw32- -f MAKEFILE.MINGW putty.exe
 CC = $(TOOLPATH)gcc
 RC = $(TOOLPATH)windres
+
+# Architecture suffix for vendored .a libraries (base64, bcrypt, blocnote,
+# jpeg, md5, mini, regex).  Default to 32-bit; the cross64 recipe overrides
+# this to _64 via `make -e LIBSUFFIX=_64`.  Letting the suffix be a variable
+# instead of doing `cp *_64.a *.a` means cross/cross64 no longer trash each
+# other's archives — both architectures live side-by-side in git.
+LIBSUFFIX ?= _32
 # Uncomment the following two lines to compile under Winelib
 # CC = winegcc
 # RC = wrc
@@ -222,7 +229,7 @@ pageant.exe: aqsync.o be_misc.o callback.o conf.o ecc-arithmetic.o errsock.o mar
 		notiming.o \
 		dll_hijacking_protection.o escape_registry_key.o filename.o fontspec.o get_username.o load_system32_dll.o winversion.o win_strerror.o \
 		kitty_commun.o kitty_crypt.o kitty_registry.o \
-		../../bcrypt/bcrypt.a ../../mini/mini.a \
+		../../bcrypt/bcrypt$(LIBSUFFIX).a ../../mini/mini$(LIBSUFFIX).a \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lole32 -lshell32 \
 		-luser32
 
@@ -280,7 +287,7 @@ plink.exe: agentf.o aqsync.o \
 		winshare.o storage.o wintime.o unicode.o x11.o x11fwd.o \
 		dll_hijacking_protection.o escape_registry_key.o filename.o fontspec.o get_username.o is_console_handle.o load_system32_dll.o open_for_write_would_lose_data.o platform_get_x_display.o win_strerror.o \
 		adb.o kitty_registry.o kitty_commun.o kitty_proxy.o kitty_ssh.o kitty_store.o kitty_tools.o \
-		../../base64/base64.a ../../bcrypt/bcrypt.a ../../mini/mini.a \
+		../../base64/base64$(LIBSUFFIX).a ../../bcrypt/bcrypt$(LIBSUFFIX).a ../../mini/mini$(LIBSUFFIX).a \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lole32 -lshell32 \
 		-luser32 \
 		-lwsock32
@@ -331,7 +338,7 @@ pscp.exe: agentf.o aqsync.o be_misc.o be_ssh.o callback.o clicons.o \
 		winshare.o storage.o wintime.o unicode.o x11fwd.o \
 		dll_hijacking_protection.o escape_registry_key.o filename.o fontspec.o get_username.o is_console_handle.o load_system32_dll.o open_for_write_would_lose_data.o platform_get_x_display.o win_strerror.o \
 		kitty_commun.o kitty_ssh.o kitty_tools.o kitty_registry.o kitty_store.o \
-		../../base64/base64.a ../../bcrypt/bcrypt.a ../../mini/mini.a \
+		../../base64/base64$(LIBSUFFIX).a ../../bcrypt/bcrypt$(LIBSUFFIX).a ../../mini/mini$(LIBSUFFIX).a \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 \
 		-lole32 -lshell32 -luser32 \
 		-lwsock32
@@ -385,7 +392,7 @@ psftp.exe: agentf.o aqsync.o be_misc.o be_ssh.o callback.o clicons.o \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 \
 		-lole32 -lshell32 -luser32 \
 		kitty_commun.o kitty_ssh.o kitty_tools.o kitty_registry.o kitty_store.o \
-		../../base64/base64.a ../../bcrypt/bcrypt.a ../../mini/mini.a \
+		../../base64/base64$(LIBSUFFIX).a ../../bcrypt/bcrypt$(LIBSUFFIX).a ../../mini/mini$(LIBSUFFIX).a \
 		-lwsock32
 
 psocks.exe: be_misc.o callback.o conf.o console.o errsock.o logging.o \
@@ -403,7 +410,7 @@ psocks.exe: be_misc.o callback.o conf.o console.o errsock.o logging.o \
 		kitty_commun.o kitty_tools.o \
 		local-proxy.o select-cli.o winsocks.o -ladvapi32 -lcomdlg32 \
 		-lgdi32 -limm32 -lole32 -lshell32 -luser32 \
-		../../mini/mini.a 
+		../../mini/mini$(LIBSUFFIX).a 
 
 putty.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		conf.o config.o cproxy.o dialog.o ecc-arithmetic.o errsock.o ldisc.o \
@@ -466,8 +473,8 @@ putty.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		urlhack.o pageant_integrated.o winpageant_integrated.o winputtygen_integrated.o winpzmodem.o \
 		import.o rsag.o cryptodsa.o prime.o ecdsa.o bcrypt.o pockle.o primecandidate.o millerrabin.o mpunsafe.o \
 		void.o $(UTF8MOUSE_OBJS) \
-		../../base64/base64.a ../../bcrypt/bcrypt.a ../../blocnote/notepad.a ../../jpeg/libjpeg.a \
-		../../md5/MD5check.a ../../mini/mini.a ../../regex/libregex.a \
+		../../base64/base64$(LIBSUFFIX).a ../../bcrypt/bcrypt$(LIBSUFFIX).a ../../blocnote/notepad$(LIBSUFFIX).a ../../jpeg/libjpeg$(LIBSUFFIX).a \
+		../../md5/MD5check$(LIBSUFFIX).a ../../mini/mini$(LIBSUFFIX).a ../../regex/libregex$(LIBSUFFIX).a \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lpsapi -lole32 -lshell32 \
 		-luser32 -lwsock32  -lwtsapi32 \
 		#-lcrypt32 \
@@ -499,7 +506,7 @@ puttygen.exe: conf.o ecc-arithmetic.o import.o marshal.o memory.o millerrabin.o 
 		security.o storage.o wintime.o request_file.o message_box.o pgp_fingerprints_msgbox.o makedlgitemborderless.o getdlgitemtext_alloc.o split_into_argv.o \
 		dll_hijacking_protection.o escape_registry_key.o filename.o fontspec.o load_system32_dll.o win_strerror.o \
 		kitty_commun.o kitty_crypt.o kitty_registry.o kitty_keygen.o kitty_store.o kitty_tools.o \
-		../../bcrypt/bcrypt.a ../../mini/mini.a \
+		../../bcrypt/bcrypt$(LIBSUFFIX).a ../../mini/mini$(LIBSUFFIX).a \
 		-ladvapi32 \
 		-lcomdlg32 -lgdi32 -limm32 -lole32 -lshell32 -luser32
 
@@ -2218,7 +2225,7 @@ kitty_dll.res.o: ../../kitty_dll.rc
 
 kitty.dll: ../../kitty_dll.c kitty_dll.res.o
 	$(CPP) -shared -o kitty.dll kitty_dll.res.o ../../kitty_dll.c \
-	-Wl,--whole-archive ../../base64/base64.a ../../regex/libregex.a ../../bcrypt/bcrypt.a ../../jpeg/libjpeg.a ../../md5/MD5check.a ../../blocnote/notepad.a ../../mini/mini.a -Wl,--no-whole-archive \
+	-Wl,--whole-archive ../../base64/base64$(LIBSUFFIX).a ../../regex/libregex$(LIBSUFFIX).a ../../bcrypt/bcrypt$(LIBSUFFIX).a ../../jpeg/libjpeg$(LIBSUFFIX).a ../../md5/MD5check$(LIBSUFFIX).a ../../blocnote/notepad$(LIBSUFFIX).a ../../mini/mini$(LIBSUFFIX).a -Wl,--no-whole-archive \
 	-DBUILD_DLL -static-libgcc -lcomdlg32 -lgdi32
 	upx --best --compress-icons=2 kitty.dll
 
@@ -2304,8 +2311,8 @@ putty_notrans.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o \
 		urlhack.o pageant_integrated.o winpageant_integrated.o winputtygen_integrated.o \
 		import.o rsag.o cryptodsa.o prime.o ecdsa.o bcrypt.o \
 		void.o $(UTF8MOUSE_OBJS) \
-		../../base64/base64.a ../../bcrypt/bcrypt.a ../../blocnote/notepad.a ../../md5/MD5check.a ../../mini/mini.a \
-		../../regex/libregex.a \
+		../../base64/base64$(LIBSUFFIX).a ../../bcrypt/bcrypt$(LIBSUFFIX).a ../../blocnote/notepad$(LIBSUFFIX).a ../../md5/MD5check$(LIBSUFFIX).a ../../mini/mini$(LIBSUFFIX).a \
+		../../regex/libregex$(LIBSUFFIX).a \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lole32 -lshell32 \
 		-luser32 \
 		-lwsock32 -lpsapi
@@ -2375,8 +2382,8 @@ putty_portable.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o 
 		urlhack.o pageant_integrated.o winpageant_integrated.o winputtygen_integrated.o winpzmodem.o \
 		import.o rsag.o cryptodsa.o prime.o ecdsa.o bcrypt.o pockle.o primecandidate.o millerrabin.o mpunsafe.o \
 		void.o $(UTF8MOUSE_OBJS) \
-		../../base64/base64.a ../../bcrypt/bcrypt.a ../../blocnote/notepad.a ../../jpeg/libjpeg.a \
-		../../md5/MD5check.a ../../mini/mini.a ../../regex/libregex.a \
+		../../base64/base64$(LIBSUFFIX).a ../../bcrypt/bcrypt$(LIBSUFFIX).a ../../blocnote/notepad$(LIBSUFFIX).a ../../jpeg/libjpeg$(LIBSUFFIX).a \
+		../../md5/MD5check$(LIBSUFFIX).a ../../mini/mini$(LIBSUFFIX).a ../../regex/libregex$(LIBSUFFIX).a \
 		-ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lpsapi -lole32 -lshell32 \
 		-luser32 -lwsock32  -lwtsapi32
 		# -lcomctl32 -lwinmm -lwinspool -lole32 -lcrypt32
@@ -2386,11 +2393,12 @@ putty_portable.exe: agentf.o aqsync.o be_all_s.o be_misc.o callback.o cmdline.o 
 clean:
 	rm -f *.o *.exe *.res.o *.so *.map
 
+cross: LIBSUFFIX = _32
 cross:
 	sed -i 's#^typedef enum _WTS_VIRTUAL_CLASS #// typedef enum _WTS_VIRTUAL_CLASS #' window.c
 	sed -i 's/0/999/' version_major.txt
-	$(MAKE) -e TOOLPATH=/usr/bin/i686-w64-mingw32- -f MAKEFILE.MINGW putty.exe plink.exe pscp.exe psftp.exe pageant.exe puttygen.exe
-	$(MAKE) -e TOOLPATH=/usr/bin/i686-w64-mingw32- -f MAKEFILE.MINGW portable
+	$(MAKE) -e LIBSUFFIX=_32 TOOLPATH=/usr/bin/i686-w64-mingw32- -f MAKEFILE.MINGW putty.exe plink.exe pscp.exe psftp.exe pageant.exe puttygen.exe
+	$(MAKE) -e LIBSUFFIX=_32 TOOLPATH=/usr/bin/i686-w64-mingw32- -f MAKEFILE.MINGW portable
 	cp putty.exe putty_nocompress.exe
 	upx --best --compress-icons=2 --compress-exports=0 putty.exe putty_portable.exe
 	mv putty.exe /builds/kitty.exe
@@ -2403,15 +2411,17 @@ cross:
 	mv puttygen.exe /builds/kittygen.exe
 	rm *.o
 
+cross64: LIBSUFFIX = _64
 cross64:
 	sed -i 's#^typedef enum _WTS_VIRTUAL_CLASS #// typedef enum _WTS_VIRTUAL_CLASS #' window.c
 	sed -i 's/0/999/' version_major.txt
-	$(MAKE) -e TOOLPATH=/usr/bin/x86_64-w64-mingw32- -f MAKEFILE.MINGW putty.exe || /usr/bin/x86_64-w64-mingw32-gcc -o kitty64.exe *.o ../../base64/base64_64.a ../../bcrypt/bcrypt_64.a ../../blocnote/notepad_64.a ../../jpeg/libjpeg_64.a ../../md5/MD5check_64.a ../../mini/mini_64.a ../../regex/libregex_64.a -ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lpsapi -lole32 -lshell32 -luser32 -lwsock32  -lwtsapi32 -mwindows
+	$(MAKE) -e LIBSUFFIX=_64 TOOLPATH=/usr/bin/x86_64-w64-mingw32- -f MAKEFILE.MINGW putty.exe || /usr/bin/x86_64-w64-mingw32-gcc -o kitty64.exe *.o ../../base64/base64_64.a ../../bcrypt/bcrypt_64.a ../../blocnote/notepad_64.a ../../jpeg/libjpeg_64.a ../../md5/MD5check_64.a ../../mini/mini_64.a ../../regex/libregex_64.a -ladvapi32 -lcomdlg32 -lgdi32 -limm32 -lpsapi -lole32 -lshell32 -luser32 -lwsock32  -lwtsapi32 -mwindows
+	# The make above produces putty.exe when the link succeeds; the
+	# fallback gcc command produces kitty64.exe directly.  Normalise
+	# to kitty64.exe before the rest of the recipe runs.
+	[ -f putty.exe ] && mv putty.exe kitty64.exe || true
 	cp kitty64.exe /builds/kitty64_nocompress.exe
-	cp ../../mini/mini_64.a ../../mini/mini.a
-	cp ../../bcrypt/bcrypt_64.a ../../bcrypt/bcrypt.a
-	cp ../../base64/base64_64.a ../../base64/base64.a
-	$(MAKE) -e TOOLPATH=/usr/bin/x86_64-w64-mingw32- -f MAKEFILE.MINGW plink.exe pscp.exe psftp.exe pageant.exe puttygen.exe
+	$(MAKE) -e LIBSUFFIX=_64 TOOLPATH=/usr/bin/x86_64-w64-mingw32- -f MAKEFILE.MINGW plink.exe pscp.exe psftp.exe pageant.exe puttygen.exe
 	upx --best --compress-icons=2 --compress-exports=0 kitty64.exe
 	mv kitty64.exe /builds/kitty64.exe
 	mv plink.exe /builds/klink64.exe
