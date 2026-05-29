@@ -3,6 +3,7 @@
 cd 0.76b_My_PuTTY/windows
 
 act=${1:-cross}
+export MAKEFLAGS="-j$(nproc)"
 
 case $act in
 cross64)
