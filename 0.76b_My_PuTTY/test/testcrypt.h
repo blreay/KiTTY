@@ -197,7 +197,7 @@ FUNC3(val_string, ssh_cipher_decrypt_length, val_cipher, val_string_ptrlen, uint
 FUNC1(val_dh, dh_setup_group, dh_group)
 FUNC2(val_dh, dh_setup_gex, val_mpint, val_mpint)
 FUNC1(uint, dh_modulus_bit_size, val_dh)
-FUNC2(val_mpint, dh_create_e, val_dh, uint)
+FUNC1(val_mpint, dh_create_e, val_dh)
 FUNC2(boolean, dh_validate_f, val_dh, val_mpint)
 FUNC2(val_mpint, dh_find_K, val_dh, val_mpint)
 
