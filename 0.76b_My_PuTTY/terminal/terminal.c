@@ -7098,7 +7098,9 @@ static void do_paint(Terminal *term)
 
 	    if (!term->ucsdata->dbcs_screenfont && !dirty_line) {
 		if (term->disptext[i]->chars[j].chr == tchar &&
-		    (term->disptext[i]->chars[j].attr &~ DATTR_MASK) == tattr)
+		    (term->disptext[i]->chars[j].attr &~ DATTR_MASK) == tattr &&
+		    truecolour_equal(
+			term->disptext[i]->chars[j].truecolour, tc))
 		    break_run = true;
 		else if (!dirty_run && ccount == 1)
 		    break_run = true;
@@ -8439,6 +8441,23 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
      */
     if (term->selstate != DRAGGING)
         term_out(term);
+    term_schedule_update(term);
+}
+
+void term_cancel_selection_drag(Terminal *term)
+{
+    /*
+     * In unusual circumstances, a mouse drag might be interrupted by
+     * something that steals the rest of the mouse gesture. An example
+     * is the popup context menu appearing. In that situation, we'll
+     * never receive the MA_RELEASE that finishes the DRAGGING state,
+     * which means terminal output could be suppressed indefinitely.
+     * Call this function from the front end in such situations to
+     * restore sensibleness. (PuTTY 0.77, commit bdab0034.)
+     */
+    if (term->selstate == DRAGGING)
+        term->selstate = NO_SELECTION;
+    term_out(term);
     term_schedule_update(term);
 }
 
