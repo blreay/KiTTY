@@ -222,6 +222,7 @@ struct terminal_tag {
 
 	SEEN_OSC_P,
 	OSC_STRING, OSC_MAYBE_ST,
+	OSC_MAYBE_ST_UTF8,	/* PuTTY 0.78: UTF-8 form of ST inside OSC */
 #ifdef MOD_FAR2L
     /* far2l extensions support */ SEEN_APC,
     VT52_ESC,

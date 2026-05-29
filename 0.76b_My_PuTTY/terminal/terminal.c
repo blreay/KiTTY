@@ -4653,6 +4653,20 @@ static void term_out(Terminal *term)
 		}
 		break;
               case '\007': {            /* BEL: Bell */
+                    if (term->termstate == SEEN_OSC ||
+                        term->termstate == SEEN_OSC_W) {
+                        /*
+                         * In an OSC context, BEL is one of the ways to
+                         * terminate the whole sequence. Process it as such
+                         * even before reaching the OSC_STRING state, so that
+                         * OSC sequences without a string body are handled
+                         * cleanly. (PuTTY 0.78 de66b031.)
+                         */
+                        do_osc(term);
+                        term->termstate = TOPLEVEL;
+                        break;
+                    }
+
 		    struct beeptime *newbeep;
 		    unsigned long ticks;
 
@@ -4738,7 +4752,12 @@ static void term_out(Terminal *term)
 	      case '\033':	      /* ESC: Escape */
 		if (term->vt52_mode)
 		    term->termstate = VT52_ESC;
-		else {
+		else if (term->termstate == SEEN_OSC ||
+		         term->termstate == SEEN_OSC_W) {
+		    /* Be prepared to terminate an OSC early
+		     * (PuTTY 0.78 de66b031). */
+		    term->termstate = OSC_MAYBE_ST;
+		} else {
 		    compatibility(ANSIMIN);
 		    term->termstate = SEEN_ESC;
 		    term->esc_query = 0;
@@ -4825,6 +4844,23 @@ static void term_out(Terminal *term)
 		    break;
 		}
 		/* else fall through */
+	      case OSC_MAYBE_ST_UTF8:
+		if (term->termstate == OSC_MAYBE_ST_UTF8) {
+		    /* PuTTY 0.78 de66b031: only the byte 0x9C completes the
+		     * UTF-8 ST sequence introduced by 0xC2.  Anything else
+		     * just returns us to the OSC-collecting state and is not
+		     * consumed. */
+		    if (c == 0x9C) {
+			do_osc(term);
+			term->termstate = TOPLEVEL;
+			break;
+		    }
+		    term->termstate = SEEN_OSC;
+		    /* fall through to re-handle 'c' in SEEN_ESC default --
+		     * but the simpler semantics here is to swallow it and
+		     * let the outer loop pick up the next character. */
+		    break;
+		}
 	      case SEEN_ESC:
 		if (c >= ' ' && c <= '/') {
 		    if (term->esc_query)
@@ -4857,6 +4893,7 @@ static void term_out(Terminal *term)
 		    /* Compatibility is nasty here, xterm, linux, decterm yuk! */
 		    compatibility(OTHER);
 		    term->termstate = SEEN_OSC;
+		    term->osc_strlen = 0;	/* PuTTY 0.78 a7106d8e */
 		    term->esc_args[0] = 0;
                     term->esc_nargs = 1;
 		    break;
@@ -6048,6 +6085,18 @@ static void term_out(Terminal *term)
 		    else
 			term->esc_args[term->esc_nargs-1] = UINT_MAX;
 		    break;
+                  case 0x9C:
+                    /* Terminate even though we aren't in OSC_STRING yet
+                     * (PuTTY 0.78 de66b031). */
+                    do_osc(term);
+                    term->termstate = TOPLEVEL;
+                    break;
+                  case 0xC2:
+                    if (in_utf(term)) {
+                        /* Be prepared for the UTF-8 version of ST. */
+                        term->termstate = OSC_MAYBE_ST_UTF8;
+                    }
+                    break;
                   default:
                     /*
                      * _Most_ other characters here terminate the
@@ -6163,6 +6212,18 @@ static void term_out(Terminal *term)
 		    else
 			term->esc_args[0] = UINT_MAX;
 		    break;
+                  case 0x9C:
+                    /* Terminate even though we aren't in OSC_STRING yet
+                     * (PuTTY 0.78 de66b031). */
+                    do_osc(term);
+                    term->termstate = TOPLEVEL;
+                    break;
+                  case 0xC2:
+                    if (in_utf(term)) {
+                        /* Be prepared for the UTF-8 version of ST. */
+                        term->termstate = OSC_MAYBE_ST_UTF8;
+                    }
+                    break;
 		  default:
 		    term->termstate = OSC_STRING;
 		    term->osc_strlen = 0;
