@@ -252,6 +252,10 @@ void ldisc_send(Ldisc *ldisc, const void *vbuf, int len, bool interactive)
 			bsb(ldisc, plen(ldisc, ldisc->buf[ldisc->buflen - 1]));
 		    ldisc->buflen--;
 		}
+		if (c == CTRL('U'))
+		    break;	       /* PuTTY 0.79 1405659d: ^U *just*
+					* erases a line; don't fall through
+					* to also inserting a literal ^U. */
                 backend_special(ldisc->backend, SS_EL, 0);
                 /*
                  * We don't send IP, SUSP or ABORT if the user has

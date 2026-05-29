@@ -4731,14 +4731,30 @@ static void term_out(Terminal *term)
 		break;
               }
 	      case '\b':	      /* BS: Back space */
-		if (term->curs.x == 0 && (term->curs.y == 0 || !term->wrap))
-		    /* do nothing */ ;
-		else if (term->curs.x == 0 && term->curs.y > 0)
+		if (term->curs.x == 0 && (term->curs.y == 0 || !term->wrap)) {
+		    /* do nothing */
+		} else if (term->curs.x == 0 && term->curs.y > 0) {
 		    term->curs.x = term->cols - 1, term->curs.y--;
-		else if (term->wrapnext)
+
+		    /*
+		     * PuTTY 0.79 (05276bda): if the line we just wrapped
+		     * back to had LATTR_WRAPPED2 set (because a DW char
+		     * couldn't fit in the rightmost column and got pushed
+		     * to the next line, leaving the right column empty),
+		     * step one more cell to the left so we land on the
+		     * actual previous printing character instead of the
+		     * unused gap cell.
+		     */
+		    {
+			termline *ldata = scrlineptr(term->curs.y);
+			if (term->curs.x > 0 && (ldata->lattr & LATTR_WRAPPED2))
+			    term->curs.x--;
+		    }
+		} else if (term->wrapnext) {
 		    term->wrapnext = false;
-		else
+		} else {
 		    term->curs.x--;
+		}
 		seen_disp_event(term);
 		break;
 	      case '\016':	      /* LS1: Locking-shift one */
