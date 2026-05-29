@@ -74,6 +74,9 @@ struct term_utf8_decode {
     int size;                          /* The size of the UTF character. */
 };
 
+/* PuTTY 0.77+: terminal-side userpass prompt state, defined in terminal.c */
+struct term_userpass_state;
+
 struct terminal_tag {
 
     int compatibility_level;
@@ -251,6 +254,11 @@ struct terminal_tag {
     int paste_len, paste_pos;
 
     Backend *backend;
+
+    /* PuTTY 0.77+: stash for in-flight terminal-side userpass prompts.
+     * Used by term_provide_backend() to free the state if the backend
+     * changes mid-prompt. */
+    struct term_userpass_state *userpass_state;
 
     Ldisc *ldisc;
 

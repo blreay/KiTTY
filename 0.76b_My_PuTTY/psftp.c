@@ -2547,6 +2547,7 @@ static void usage(void)
     printf("  -l user   connect with specified username\n");
     printf("  -P port   connect to specified port\n");
     printf("  -pw passw login with specified password\n");
+    printf("  -pwfile file login with password read from specified file\n");
     printf("  -1 -2     force use of particular SSH protocol version\n");
     printf("  -ssh -ssh-connection\n");
     printf("            force use of particular SSH protocol variant\n");

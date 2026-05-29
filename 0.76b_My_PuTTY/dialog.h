@@ -394,10 +394,15 @@ union control {
 	/*
 	 * On at least some platforms, the file selector is a
 	 * separate dialog box, and contains a user-settable title.
-	 * 
+	 *
 	 * This value _is_ expected to require freeing.
 	 */
 	char *title;
+	/*
+	 * Some controls represent the file selector as a single
+	 * button rather than an edit box plus button (PuTTY 0.77+).
+	 */
+	bool just_button;
     } fileselect;
     struct {
 	/* In this variant, `label' MUST be NULL. */

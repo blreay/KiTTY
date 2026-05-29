@@ -134,6 +134,8 @@ static void do_paint(Terminal *);
 static void erase_lots(Terminal *, bool, bool, bool);
 static int find_last_nonempty_line(Terminal *, tree234 *);
 static void swap_screen(Terminal *, int, bool, bool);
+struct term_userpass_state;        /* PuTTY 0.77+ */
+void term_userpass_state_free(struct term_userpass_state *s);
 static void update_sbar(Terminal *);
 static void deselect(Terminal *);
 static void term_print_finish(Terminal *);
@@ -8960,6 +8962,17 @@ struct term_userpass_state {
     size_t curr_prompt;
     bool done_prompt;   /* printed out prompt yet? */
 };
+
+/* Free a term_userpass_state allocated by term_get_userpass_input.
+ * The struct itself has no owned sub-allocations as of PuTTY 0.77's
+ * minimal version, so a plain sfree is enough. Kept as a function
+ * so term_provide_backend() and the future per-prompt cleanup can
+ * call a single accessor regardless of how the struct grows. */
+void term_userpass_state_free(struct term_userpass_state *s)
+{
+    if (!s) return;
+    sfree(s);
+}
 
 /* Tiny wrapper to make it easier to write lots of little strings */
 static inline void term_write(Terminal *term, ptrlen data)
